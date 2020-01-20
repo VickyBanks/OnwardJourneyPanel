@@ -57,56 +57,77 @@ SELECT DISTINCT p.unique_visitor_cookie_id,
                 p.placement,
                 CASE
                     WHEN left(right(p.placement, 13), 8) SIMILAR TO '%[0-9]%' THEN left(right(p.placement, 13), 8)
-                    ELSE 'none' END AS current_ep_id,
-                p.result          AS next_ep_id,
-                p.event_start_datetime
+                    ELSE 'none' END                                                                  AS current_ep_id,
+                p.result                                                                             AS next_ep_id,
+                to_timestamp(p.event_start_datetime, 'YYYY-MM-DD HH24:MI:SS') at time zone
+                'Etc/UTC'                                                                            AS event_start_datetime-- convert this to a datetime
+
 FROM s3_audience.publisher p
          JOIN vb_tv_nav_select vb
               ON p.dt = vb.dt AND p.unique_visitor_cookie_id = vb.unique_visitor_cookie_id AND
                  vb.visit_id = p.visit_id AND vb.dt = p.dt;
 
+CREATE TABLE vb_tv_nav_example1 AS
+SELECT *,
+       row_number()
+       OVER (PARTITION BY unique_visitor_cookie_id, visit_id ORDER BY unique_visitor_cookie_id, visit_id, event_position) AS visit_row_num
+FROM vb_tv_nav_example;
 
---- Need to have session IDs for if someone plays content, then goes back to it, can't just use the first occurance.
 
 
+-- identify the start of viewing new content (this is needed for if someone watches content and then comes back later to the same content)
 DROP TABLE IF EXISTS vb_tv_nav_example2;
 CREATE TABLE vb_tv_nav_example2 AS
 SELECT *,
-       row_number()
-       OVER (PARTITION BY unique_visitor_cookie_id,visit_id ORDER BY event_start_datetime) AS visit_row_id
-FROM vb_tv_nav_example
+       CASE
+           WHEN current_ep_id != LAG(current_ep_id, 1) -- current ep id same as one above
+                                 OVER (PARTITION BY unique_visitor_cookie_id, visit_id ORDER BY unique_visitor_cookie_id, visit_id, event_position)
+               THEN 'new_viewing'
+           WHEN visit_row_num = 1 THEN 'new_viewing'
+           END AS viewing_session
+FROM vb_tv_nav_example1
 ORDER BY unique_visitor_cookie_id, visit_id, event_position;
 
 SELECT * FROM vb_tv_nav_example2 ORDER BY unique_visitor_cookie_id, visit_id, event_position;
 
-CREATE TABLE vb_session_num AS
+-- Select only the new content watching or the click event
+-- give the time of the previous event
+DROP TABLE IF EXISTS vb_tv_nav_example3 ;
+CREATE TABLE vb_tv_nav_example3 AS
 SELECT DISTINCT unique_visitor_cookie_id,
                 visit_id,
+                event_position,
+                attribute,
+                placement,
                 current_ep_id,
-                row_number()
-                OVER (PARTITION BY unique_visitor_cookie_id,visit_id ORDER BY event_start_datetime) AS visit_row_id
-FROM vb_tv_nav_example;
--------------
-SELECT * FROM vb_tv_nav_example a
-LEFT JOIN vb_session_num b ON a.unique_visitor_cookie_id = b.unique_visitor_cookie_id AND a.visit_id = b.visit_id AND a.current_ep_id = b.current_ep_id
-ORDER BY a.unique_visitor_cookie_id, a.visit_id, a.event_position;
+                event_start_datetime,
+                viewing_session,
+                LAG(event_start_datetime, 1)
+                OVER (PARTITION BY unique_visitor_cookie_id, visit_id ORDER BY unique_visitor_cookie_id, visit_id, event_position) AS previous_event_start_datetime
+FROM (
+         SELECT *
+         FROM vb_tv_nav_example2
+         WHERE attribute = 'page-section-related~select'
+            OR viewing_session IS NOT NULL
+         ORDER BY unique_visitor_cookie_id, visit_id, event_position)
+ORDER BY unique_visitor_cookie_id, visit_id, event_position;
 
------------
+SELECT * FROM vb_tv_nav_example3 ORDER BY unique_visitor_cookie_id, visit_id, event_position;
 
-SELECT *,
-       CASE
-           WHEN current_ep_id = LAG(current_ep_id, 1) -- current ep id same as one above
-                                OVER (PARTITION BY unique_visitor_cookie_id, visit_id ORDER BY unique_visitor_cookie_id, visit_id, event_position)
-               THEN LAG(visit_row_id, 1) -- then keep session count same as row count above
-                    OVER (PARTITION BY unique_visitor_cookie_id, visit_id ORDER BY unique_visitor_cookie_id, visit_id, event_position)
-           ELSE visit_row_id
-           END AS new_session_count
-FROM vb_tv_nav_example2
+SELECT unique_visitor_cookie_id,
+       visit_id,
+       event_position,
+       current_ep_id,
+       event_start_datetime - previous_event_start_datetime AS time_since_content_start
+FROM vb_tv_nav_example3
+WHERE attribute = 'page-section-related~select'
 ORDER BY unique_visitor_cookie_id, visit_id, event_position;
 
 
 
 
+
+-------------------
 
 
 SELECT DISTINCT brand_id,
@@ -118,10 +139,10 @@ SELECT DISTINCT brand_id,
                 clip_id,
                 clip_title
 FROM prez.scv_vmb
-WHERE brand_id = 'm000csdm'
-   OR series_id = 'm000csdm'
-   or episode_id = 'm000csdm'
-   OR clip_id = 'm000csdm';
+WHERE brand_id = 'b00x98tn'
+   OR series_id = 'b00x98tn'
+   or episode_id = 'b00x98tn'
+   OR clip_id = 'b00x98tn';
 
 
 -- WHEN left(right(placement, 13), 8) LIKE 'yer.load' THEN NULL
