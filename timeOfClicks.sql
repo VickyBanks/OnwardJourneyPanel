@@ -13,23 +13,22 @@ FROM s3_audience.publisher
 WHERE container LIKE '%page-section-related%'
   AND attribute LIKE '%page-section-related~select%'
   AND metadata LIKE '%iplayer::bigscreen-html%'
-  AND dt = 20191226
+  AND dt >= 20191101 AND dt <= 20191114
 ORDER BY unique_visitor_cookie_id, visit_id, event_position;
 
-/*SELECT *
-FROM vb_tv_nav_select;
+SELECT * FROM vb_tv_nav_select LIMIT 5;
 
-SELECT vb.*, p.attribute, p.event_position, p.event_start_datetime, p.result
+/*SELECT vb.*, p.attribute, p.event_position, p.event_start_datetime, p.result
 FROM vb_tv_nav_select vb
          JOIN s3_audience.publisher p
               ON vb.unique_visitor_cookie_id = p.unique_visitor_cookie_id AND vb.visit_id = p.visit_id AND vb.dt = p.dt
 WHERE p.destination = 'PS_IPLAYER'
   AND vb.current_ep_id = p.result
   AND p.attribute = 'iplxp-ep-started'
-  AND vb.event_position > p.event_position;
+  AND vb.event_position > p.event_position;*/
 
 
-SELECT *,
+/*SELECT *,
        row_number()
        OVER (PARTITION BY unique_visitor_cookie_id,visit_id, current_ep_id ORDER BY event_start_datetime) AS current_ep_id_instance
 FROM (SELECT DISTINCT p.unique_visitor_cookie_id,
@@ -89,9 +88,9 @@ SELECT *,
 FROM vb_tv_nav_num
 ORDER BY unique_visitor_cookie_id, visit_id, event_position;
 
-SELECT *
+/*SELECT *
 FROM vb_tv_nav_new_content_flag
-ORDER BY unique_visitor_cookie_id, visit_id, event_position;
+ORDER BY unique_visitor_cookie_id, visit_id, event_position;*/
 
 -- Select the rows where new content is flagged and the rows where the click event is given
 -- Add in the time of the previous event as a new column to be used for calculations
@@ -136,7 +135,7 @@ FROM vb_tv_nav_key_events
 WHERE attribute = 'page-section-related~select'
 ORDER BY unique_visitor_cookie_id, visit_id, event_position;
 
-SELECT *
+SELECT visit_id, time_since_content_start_sec
 FROM vb_tv_nav_time_to_click;
 
 
@@ -150,9 +149,7 @@ SELECT CASE
 FROM vb_tv_nav_time_to_click
 GROUP BY 1;
 
-CREATE TABLE new_example AS
-SELECT date2 - date1 AS date_interval
-FROM ABC;
+
 
 ALTER TABLE vb_tv_nav_time_to_click
     ADD COLUMN time_since_content_start timestamptz;
