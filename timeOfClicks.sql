@@ -13,10 +13,13 @@ FROM s3_audience.publisher
 WHERE container LIKE '%page-section-related%'
   AND attribute LIKE '%page-section-related~select%'
   AND metadata LIKE '%iplayer::bigscreen-html%'
-  AND dt >= 20191101 AND dt <= 20191114
+  AND dt >= 20191101
+  AND dt <= 20191114
 ORDER BY unique_visitor_cookie_id, visit_id, event_position;
 
-SELECT * FROM vb_tv_nav_select LIMIT 5;
+SELECT *
+FROM vb_tv_nav_select
+LIMIT 5;
 
 /*SELECT vb.*, p.attribute, p.event_position, p.event_start_datetime, p.result
 FROM vb_tv_nav_select vb
@@ -49,7 +52,8 @@ ORDER BY unique_visitor_cookie_id, visit_id, event_position;*/
 
 DROP TABLE IF EXISTS vb_tv_nav;
 CREATE TABLE vb_tv_nav AS
-SELECT DISTINCT p.unique_visitor_cookie_id,
+SELECT DISTINCT p.dt,
+                p.unique_visitor_cookie_id,
                 p.visit_id,
                 p.event_position,
                 p.attribute,
@@ -71,7 +75,7 @@ DROP TABLE IF EXISTS vb_tv_nav_num;
 CREATE TABLE vb_tv_nav_num AS
 SELECT *,
        row_number()
-       OVER (PARTITION BY unique_visitor_cookie_id, visit_id ORDER BY unique_visitor_cookie_id, visit_id, event_position) AS visit_row_num
+       OVER (PARTITION BY dt,unique_visitor_cookie_id, visit_id ORDER BY dt,unique_visitor_cookie_id, visit_id, event_position) AS visit_row_num
 FROM vb_tv_nav;
 
 
@@ -81,12 +85,13 @@ CREATE TABLE vb_tv_nav_new_content_flag AS
 SELECT *,
        CASE
            WHEN current_ep_id != LAG(current_ep_id, 1) -- current ep id same as one above
-                                 OVER (PARTITION BY unique_visitor_cookie_id, visit_id ORDER BY unique_visitor_cookie_id, visit_id, event_position)
+                                 OVER (PARTITION BY dt, unique_visitor_cookie_id, visit_id ORDER BY dt,unique_visitor_cookie_id, visit_id, event_position)
                THEN 'new_viewing'
            WHEN visit_row_num = 1 THEN 'new_viewing'
            END AS viewing_session
 FROM vb_tv_nav_num
 ORDER BY unique_visitor_cookie_id, visit_id, event_position;
+
 
 /*SELECT *
 FROM vb_tv_nav_new_content_flag
@@ -96,7 +101,8 @@ ORDER BY unique_visitor_cookie_id, visit_id, event_position;*/
 -- Add in the time of the previous event as a new column to be used for calculations
 DROP TABLE IF EXISTS vb_tv_nav_key_events;
 CREATE TABLE vb_tv_nav_key_events AS
-SELECT DISTINCT unique_visitor_cookie_id,
+SELECT DISTINCT dt,
+                unique_visitor_cookie_id,
                 visit_id,
                 event_position,
                 attribute,
@@ -105,18 +111,19 @@ SELECT DISTINCT unique_visitor_cookie_id,
                 event_start_datetime,
                 viewing_session,
                 LAG(event_start_datetime, 1)
-                OVER (PARTITION BY unique_visitor_cookie_id, visit_id ORDER BY unique_visitor_cookie_id, visit_id, event_position) AS previous_event_start_datetime
+                OVER (PARTITION BY dt, unique_visitor_cookie_id, visit_id ORDER BY dt, unique_visitor_cookie_id, visit_id, event_position) AS previous_event_start_datetime
 FROM (
          SELECT *
          FROM vb_tv_nav_new_content_flag
          WHERE attribute = 'page-section-related~select'
             OR viewing_session IS NOT NULL
          ORDER BY unique_visitor_cookie_id, visit_id, event_position)
-ORDER BY unique_visitor_cookie_id, visit_id, event_position;
+ORDER BY dt, unique_visitor_cookie_id, visit_id, event_position;
 
 SELECT *
 FROM vb_tv_nav_key_events
-ORDER BY unique_visitor_cookie_id, visit_id, event_position;
+ORDER BY unique_visitor_cookie_id, visit_id, event_position
+LIMIT 5;
 
 --DATEDIFF(date , event_start_datetime, previous_event_start_datetime) AS test,
 --to_timestamp(event_start_datetime - previous_event_start_datetime, 'YYYY-MM-DD HH24:MI:SS') at time zone 'Etc/UTC' AS time_since_content_start
@@ -124,7 +131,8 @@ ORDER BY unique_visitor_cookie_id, visit_id, event_position;
 
 DROP TABLE vb_tv_nav_time_to_click;
 CREATE TABLE vb_tv_nav_time_to_click AS
-SELECT unique_visitor_cookie_id,
+SELECT dt,
+       unique_visitor_cookie_id,
        visit_id,
        current_ep_id,
        event_start_datetime,
@@ -138,12 +146,20 @@ ORDER BY unique_visitor_cookie_id, visit_id, event_position;
 SELECT visit_id, time_since_content_start_sec
 FROM vb_tv_nav_time_to_click;
 
+SELECT *
+FROM vb_tv_nav_time_to_click
+WHERE visit_id = 784641
+ORDER BY dt, event_start_datetime;
 
 SELECT CASE
            WHEN time_since_content_start_sec >= 0 AND time_since_content_start_sec < 60 THEN '0-1'
            WHEN time_since_content_start_sec >= 60 AND time_since_content_start_sec < 300 THEN '1-5'
-           WHEN time_since_content_start_sec > 300 AND time_since_content_start_sec < 600 THEN '5-10'
-           ELSE '10+'
+           WHEN time_since_content_start_sec >= 300 AND time_since_content_start_sec < 600 THEN '5-10'
+           WHEN time_since_content_start_sec >= 600 AND time_since_content_start_sec < 900 THEN '10-15'
+           WHEN time_since_content_start_sec >= 900 AND time_since_content_start_sec < 1200 THEN '15-20'
+           WHEN time_since_content_start_sec < 0 THEN 'Smaller than 0'
+           WHEN time_since_content_start_sec IS NULL THEN 'null'
+           ELSE '20+'
            END AS time_ranges,
        count(visit_id)
 FROM vb_tv_nav_time_to_click
@@ -173,10 +189,10 @@ SELECT DISTINCT brand_id,
                 clip_id,
                 clip_title
 FROM prez.scv_vmb
-WHERE brand_id = 'b00x98tn'
-   OR series_id = 'b00x98tn'
-   or episode_id = 'b00x98tn'
-   OR clip_id = 'b00x98tn';
+WHERE brand_id = 'p07ptd54'
+   OR series_id = 'p07ptd54'
+   or episode_id = 'p07ptd54'
+   OR clip_id = 'p07ptd54';
 
 
 -- WHEN left(right(placement, 13), 8) LIKE 'yer.load' THEN NULL
