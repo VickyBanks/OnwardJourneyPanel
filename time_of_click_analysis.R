@@ -1,6 +1,7 @@
 library(ggplot2)
 library(ggridges)
 library(dplyr)
+library(ggrepel)
 
 clickTime<- read.csv("time_to_click.csv", header = TRUE)
 clickTime <- clickTime %>% rename(clickTime_sec = time_since_content_start_sec)
@@ -31,13 +32,23 @@ ggplot(data = clickTimeGroups, aes(x=timeRange_sec, y=numInRange))+
                                breaks = c(-1, 60,120,180,240, 300,360,420,480,540, 600,Inf),
                                labels = c("0-1", "1-2", "2-3", "3-4", "4-5", "5-6", "6-7", "7-8", "8-9", "9-10", "10+"))) %>% 
     group_by(timeRange_sec) %>% 
-    summarize(numInRange=n())
+    summarize(numInRange=n()) %>%
+    mutate(perc = round(100*numInRange/sum(numInRange),1))
   
   ggplot(data = clickTimeMinutes, aes(x=timeRange_sec, y=numInRange))+
-    geom_bar(stat = "identity")+
-    scale_y_continuous(limits = c(0,5000000), breaks = c(0, 1000000,2000000,3000000,4000000,5000000), labels = c(0, 1,2,3,4,5))+
+    geom_bar(stat = "identity", fill = "blue")+
+    scale_y_continuous(limits = c(0,5000000), breaks = c(0,250000, 1000000,2000000,3000000,4000000,5000000), labels = c(0,0.25, 1,2,3,4,5))+
     ylab("Number of Visits with Click in Time Range (millions)")+
     xlab("Time Range (mins)")+
     geom_hline(yintercept = 250000)+
+    geom_label(data=subset(clickTimeMinutes, perc > 5),
+              aes(label=paste0(sprintf("%1.0f", perc),"%"),),
+              position = position_stack(vjust = 0.5),
+              colour="black")+
+    geom_label(data=subset(clickTimeMinutes, perc >= 5 & perc < 6),
+               aes(label=paste0(sprintf("%1.0f", perc),"%"),),
+               position = position_stack(vjust = 1.6),
+               colour="black")+
+    ggtitle("Number of Clicks to the Onward Journey Panel 'x' Minutes After Content Start \n PS_IPLAYER - Big Screen - 2019-11-01 to 2019-11-14" )+
   theme_classic()
 
