@@ -1,3 +1,5 @@
+------ SECTION 1 --- Find the time taken to click the tv onwards journey menu after the content has begun -------------
+
 -- select visits and UV on TV
 DROP TABLE IF EXISTS vb_tv_nav_select;
 CREATE TABLE vb_tv_nav_select AS
@@ -177,8 +179,13 @@ SET time_since_content_start=
             to_timestamp(event_start_datetime - previous_event_start_datetime, 'YYYY-MM-DD HH24:MI:SS') at time zone
             'Etc/UTC';
 
+SELECT * FROM vb_tv_nav_time_to_click WHERE dt = 20191111 AND visit_id =17686132;
 
------- Where are those click taking user? To another episode of the same series/brand or not?
+
+
+
+-------- SECTION 2 ---  Find where those click taking the user - -- i.e another episode of the same series/brand or not? ---------------------
+
 -- Create a simple subset of the VMB for just TV episodes ignoring radio or tv clips/trailers
 DROP TABLE IF EXISTS vb_vmb_subset_temp;
 CREATE TABLE vb_vmb_subset_temp AS
@@ -213,28 +220,33 @@ ORDER BY brand_title,
          series_title,
          episode_number;
 
+--SELECT * FROM vb_vmb_subset WHERE episode_id = 'b007cldz';
+
 DROP TABLE IF EXISTS vb_vmb_subset_temp;
 
-
---CREATE TABLE AS vb_tv_nav_next_ep
+-- For each click on the nav bar get the brand & series IDs of the content, the episode number, the running episode count(i.e over many series) for the current and next content.
+-- This will be used to see if people click onto the same or different brands/series
+CREATE TABLE vb_tv_nav_next_ep_full_info AS
 SELECT a.dt,
        a.unique_visitor_cookie_id,
        a.time_since_content_start_sec,
        a.visit_id,
-       --c.brand_id       AS current_brand_id,
+       c.brand_id       AS current_brand_id,
        c.brand_title    AS current_brand_title,
-       -- c.series_id      AS current_series_id,
+       c.series_id      AS current_series_id,
        c.series_title   AS current_series_title,
-       -- a.current_ep_id,
+       a.current_ep_id,
        c.episode_title  AS current_ep_title,
-       e.episode_number AS current_ep_num,
-       -- d.brand_id       AS next_brand_id,
+       c.episode_number AS current_ep_num,
+       c.running_ep_count AS current_running_ep_count,
+       d.brand_id       AS next_brand_id,
        d.brand_title    AS next_brand_title,
-       -- d.series_id      AS next_series_id,
+       d.series_id      AS next_series_id,
        d.series_title   AS next_series_title,
-       --b.next_ep_id,
+       b.next_ep_id,
        d.episode_title  AS next_ep_title,
-       f.episode_number
+       d.episode_number AS next_ep_num,
+       d.running_ep_count AS next_running_ep_count
 FROM vb_tv_nav_time_to_click a
          JOIN vb_tv_nav_select b ON a.dt = b.dt AND
                                     a.unique_visitor_cookie_id = b.unique_visitor_cookie_id AND
@@ -242,16 +254,29 @@ FROM vb_tv_nav_time_to_click a
                                     a.current_ep_id = b.current_ep_id
          JOIN vb_vmb_subset c ON a.current_ep_id = c.episode_id
          JOIN vb_vmb_subset d ON b.next_ep_id = d.episode_id
-         JOIN (SELECT DISTINCT episode_id, episode_number FROM central_insights_sandbox.episode_numbers) e
-              on a.current_ep_id = e.episode_id
-         JOIN (SELECT DISTINCT episode_id, episode_number FROM central_insights_sandbox.episode_numbers) f
-              on b.next_ep_id = f.episode_id
-lIMIT 10;
+;
+
+SELECT * FROM vb_tv_nav_next_ep_full_info limit 5;
 
 
-SELECT *
-FROM prez.scv_vmb
-LIMIT 5;
+-- Identify if people have clicked onto content of the same brand, same brand & same series, next episode of content or unrelated content.
+CREATE TABLE vb_tv_nav_next_ep_summary AS
+SELECT dt,unique_visitor_cookie_id, visit_id, time_since_content_start_sec,
+       CASE
+           WHEN current_brand_id = next_brand_id THEN 1
+           ELSE 0 END AS same_brand,
+       CASE
+           WHEN current_brand_id = next_brand_id AND current_series_id = next_series_id THEN 1
+           ELSE 0 END AS same_brand_series,
+       CASE
+           WHEN current_brand_id = next_brand_id AND current_series_id = next_series_id AND
+                current_running_ep_count + 1 = next_running_ep_count THEN 1
+           ELSE 0 END AS next_ep
+FROM vb_tv_nav_next_ep_full_info
+ORDER BY dt, visit_id;
+
+
+
 -------------------
 SELECT *
 FROM central_insights_sandbox.episode_numbers
@@ -267,10 +292,12 @@ SELECT DISTINCT brand_id,
                 clip_id,
                 clip_title
 FROM prez.scv_vmb
-WHERE brand_id = 'p07ptd54'
-   OR series_id = 'p07ptd54'
-   or episode_id = 'p07ptd54'
-   OR clip_id = 'p07ptd54';
+WHERE --brand_id = 'p07ptd54'
+   --OR series_id = 'p07ptd54'
+   --or
+      episode_id = 'b007cldz'
+   --OR clip_id = 'p07ptd54'
+   ;
 
 
 -- WHEN left(right(placement, 13), 8) LIKE 'yer.load' THEN NULL
