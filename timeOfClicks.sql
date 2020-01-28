@@ -1,6 +1,6 @@
 ------ SECTION 1 --- Find the time taken to click the tv onwards journey menu after the content has begun -------------
 
--- select visits and UV on TV
+-- Select visits and UV on TV where the onward nav was clicked
 DROP TABLE IF EXISTS vb_tv_nav_select;
 CREATE TABLE vb_tv_nav_select AS
 SELECT DISTINCT dt,
@@ -274,6 +274,11 @@ SELECT dt,unique_visitor_cookie_id, visit_id, time_since_content_start_sec,
            ELSE 0 END AS next_ep
 FROM vb_tv_nav_next_ep_full_info
 ORDER BY dt, visit_id;
+
+-- How many journey's are in the same brand?
+SELECT next_ep, count(visit_id) FROM
+vb_tv_nav_next_ep_summary
+GROUP BY next_ep;
 
 
 
