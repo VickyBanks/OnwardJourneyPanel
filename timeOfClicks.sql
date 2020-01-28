@@ -23,23 +23,23 @@ LIMIT 5;
 
 -- How many visits did not click this panel?
 
-SELECT nav_click, count(*) FROM
-(SELECT DISTINCT a.dt,
-                a.unique_visitor_cookie_id,
-                a.visit_id,
-                ISNULL(b.nav_click, 'no_click') AS nav_click
-FROM s3_audience.publisher a
-         LEFT JOIN (SELECT DISTINCT dt,
-                               unique_visitor_cookie_id,
-                               visit_id,
-                               CAST('with_click' AS varchar) AS nav_click
-               FROM vb_tv_nav_select) b ON a.dt = b.dt AND
-                                           a.unique_visitor_cookie_id = b.unique_visitor_cookie_id AND
-                                           a.visit_id = b.visit_id
-WHERE metadata LIKE '%iplayer::bigscreen-html%'
-  AND a.dt >= 20191101
-  AND a.dt <= 20191114)
-    GROUP BY nav_click;
+SELECT nav_click, count(*)
+FROM (SELECT DISTINCT a.dt,
+                      a.unique_visitor_cookie_id,
+                      a.visit_id,
+                      ISNULL(b.nav_click, 'no_click') AS nav_click
+      FROM s3_audience.publisher a
+               LEFT JOIN (SELECT DISTINCT dt,
+                                          unique_visitor_cookie_id,
+                                          visit_id,
+                                          CAST('with_click' AS varchar) AS nav_click
+                          FROM vb_tv_nav_select) b ON a.dt = b.dt AND
+                                                      a.unique_visitor_cookie_id = b.unique_visitor_cookie_id AND
+                                                      a.visit_id = b.visit_id
+      WHERE metadata LIKE '%iplayer::bigscreen-html%'
+        AND a.dt >= 20191101
+        AND a.dt <= 20191114)
+GROUP BY nav_click;
 
 -- with click =  4,505,569 = 10%
 -- no click   = 41,987,593 = 90%
@@ -66,7 +66,9 @@ FROM s3_audience.publisher p
                  vb.visit_id = p.visit_id AND vb.dt = p.dt;
 
 
-SELECT * FROM vb_tv_nav_select LIMIT 5;
+SELECT *
+FROM vb_tv_nav_select
+LIMIT 5;
 
 -- Add in row number to enable the first instance from a visit to be classified as the start of viewing
 DROP TABLE IF EXISTS vb_tv_nav_num;
@@ -175,16 +177,86 @@ SET time_since_content_start=
             to_timestamp(event_start_datetime - previous_event_start_datetime, 'YYYY-MM-DD HH24:MI:SS') at time zone
             'Etc/UTC';
 
+
 ------ Where are those click taking user? To another episode of the same series/brand or not?
+-- Create a simple subset of the VMB for just TV episodes ignoring radio or tv clips/trailers
+DROP TABLE IF EXISTS vb_vmb_subset_temp;
+CREATE TABLE vb_vmb_subset_temp AS
+SELECT DISTINCT a.brand_id,
+                a.brand_title,
+                a.series_id,
+                a.series_title,
+                a.episode_id,
+                a.episode_title,
+                b.episode_number
+FROM prez.scv_vmb a
+         LEFT JOIN (SELECT DISTINCT episode_id, episode_number FROM central_insights_sandbox.episode_numbers) b
+                   on a.episode_id = b.episode_id
+WHERE clip_id = 'null'       --This is to prevent clips pulling in null episode values (i.e series trailers)
+  AND a.media_type = 'video' -- remove any radio content
+  AND master_brand_name NOT ILIKE '%radio%'
+  AND master_brand_name NOT ILIKE '%asian network%'
+  AND master_brand_name NOT ILIKE '%WM 95.6%'
+ORDER BY a.brand_id,
+         a.series_id,
+         a.episode_id,
+         b.episode_number;
+
+-- Number episodes sequentially across all series.
+CREATE TABLE vb_vmb_subset AS
+SELECT *,
+       row_number()
+       over (PARTITION BY brand_title ORDER BY brand_title, series_title, episode_number) AS running_ep_count
+FROM vb_vmb_subset_temp
+WHERE episode_number IS NOT NULL -- eliminates anything that has not been given an episode number
+ORDER BY brand_title,
+         series_title,
+         episode_number;
+
+DROP TABLE IF EXISTS vb_vmb_subset_temp;
 
 
-SELECT * FROM vb_tv_nav_time_to_click
-JOIN
-lIMIT 5;
+--CREATE TABLE AS vb_tv_nav_next_ep
+SELECT a.dt,
+       a.unique_visitor_cookie_id,
+       a.time_since_content_start_sec,
+       a.visit_id,
+       --c.brand_id       AS current_brand_id,
+       c.brand_title    AS current_brand_title,
+       -- c.series_id      AS current_series_id,
+       c.series_title   AS current_series_title,
+       -- a.current_ep_id,
+       c.episode_title  AS current_ep_title,
+       e.episode_number AS current_ep_num,
+       -- d.brand_id       AS next_brand_id,
+       d.brand_title    AS next_brand_title,
+       -- d.series_id      AS next_series_id,
+       d.series_title   AS next_series_title,
+       --b.next_ep_id,
+       d.episode_title  AS next_ep_title,
+       f.episode_number
+FROM vb_tv_nav_time_to_click a
+         JOIN vb_tv_nav_select b ON a.dt = b.dt AND
+                                    a.unique_visitor_cookie_id = b.unique_visitor_cookie_id AND
+                                    a.visit_id = b.visit_id AND
+                                    a.current_ep_id = b.current_ep_id
+         JOIN vb_vmb_subset c ON a.current_ep_id = c.episode_id
+         JOIN vb_vmb_subset d ON b.next_ep_id = d.episode_id
+         JOIN (SELECT DISTINCT episode_id, episode_number FROM central_insights_sandbox.episode_numbers) e
+              on a.current_ep_id = e.episode_id
+         JOIN (SELECT DISTINCT episode_id, episode_number FROM central_insights_sandbox.episode_numbers) f
+              on b.next_ep_id = f.episode_id
+lIMIT 10;
 
 
+SELECT *
+FROM prez.scv_vmb
+LIMIT 5;
 -------------------
-
+SELECT *
+FROM central_insights_sandbox.episode_numbers
+WHERE episode_id = 'p040trv9'
+LIMIT 5;
 
 SELECT DISTINCT brand_id,
                 brand_title,
