@@ -21,35 +21,30 @@ SELECT *
 FROM vb_tv_nav_select
 LIMIT 5;
 
-/*SELECT vb.*, p.attribute, p.event_position, p.event_start_datetime, p.result
-FROM vb_tv_nav_select vb
-         JOIN s3_audience.publisher p
-              ON vb.unique_visitor_cookie_id = p.unique_visitor_cookie_id AND vb.visit_id = p.visit_id AND vb.dt = p.dt
-WHERE p.destination = 'PS_IPLAYER'
-  AND vb.current_ep_id = p.result
-  AND p.attribute = 'iplxp-ep-started'
-  AND vb.event_position > p.event_position;*/
+-- How many visits did not click this panel?
 
+SELECT nav_click, count(*) FROM
+(SELECT DISTINCT a.dt,
+                a.unique_visitor_cookie_id,
+                a.visit_id,
+                ISNULL(b.nav_click, 'no_click') AS nav_click
+FROM s3_audience.publisher a
+         LEFT JOIN (SELECT DISTINCT dt,
+                               unique_visitor_cookie_id,
+                               visit_id,
+                               CAST('with_click' AS varchar) AS nav_click
+               FROM vb_tv_nav_select) b ON a.dt = b.dt AND
+                                           a.unique_visitor_cookie_id = b.unique_visitor_cookie_id AND
+                                           a.visit_id = b.visit_id
+WHERE metadata LIKE '%iplayer::bigscreen-html%'
+  AND a.dt >= 20191101
+  AND a.dt <= 20191114)
+    GROUP BY nav_click;
 
-/*SELECT *,
-       row_number()
-       OVER (PARTITION BY unique_visitor_cookie_id,visit_id, current_ep_id ORDER BY event_start_datetime) AS current_ep_id_instance
-FROM (SELECT DISTINCT p.unique_visitor_cookie_id,
-                      p.visit_id,
-                      p.event_position,
-                      p.attribute,
-                      p.placement,
-                      CASE
-                          WHEN left(right(p.placement, 13), 8) SIMILAR TO '%[0-9]%' THEN left(right(p.placement, 13), 8)
-                          ELSE NULL END AS current_ep_id,
-                      p.result          AS next_ep_id,
-                      p.event_start_datetime
-      FROM s3_audience.publisher p
-               JOIN vb_tv_nav_select vb
-                    ON p.dt = vb.dt AND p.unique_visitor_cookie_id = vb.unique_visitor_cookie_id AND
-                       vb.visit_id = p.visit_id AND vb.dt = p.dt)
-ORDER BY unique_visitor_cookie_id, visit_id, event_position;*/
+-- with click =  4,505,569 = 10%
+-- no click   = 41,987,593 = 90%
 
+-- Get all events for those users who click the onward journey panel.
 DROP TABLE IF EXISTS vb_tv_nav;
 CREATE TABLE vb_tv_nav AS
 SELECT DISTINCT p.dt,
@@ -69,6 +64,9 @@ FROM s3_audience.publisher p
          JOIN vb_tv_nav_select vb
               ON p.dt = vb.dt AND p.unique_visitor_cookie_id = vb.unique_visitor_cookie_id AND
                  vb.visit_id = p.visit_id AND vb.dt = p.dt;
+
+
+SELECT * FROM vb_tv_nav_select LIMIT 5;
 
 -- Add in row number to enable the first instance from a visit to be classified as the start of viewing
 DROP TABLE IF EXISTS vb_tv_nav_num;
@@ -151,6 +149,7 @@ FROM vb_tv_nav_time_to_click
 WHERE visit_id = 784641
 ORDER BY dt, event_start_datetime;
 
+-- look at groupings in minutes
 SELECT CASE
            WHEN time_since_content_start_sec >= 0 AND time_since_content_start_sec < 60 THEN '0-1'
            WHEN time_since_content_start_sec >= 60 AND time_since_content_start_sec < 300 THEN '1-5'
@@ -175,6 +174,13 @@ UPDATE vb_tv_nav_time_to_click
 SET time_since_content_start=
             to_timestamp(event_start_datetime - previous_event_start_datetime, 'YYYY-MM-DD HH24:MI:SS') at time zone
             'Etc/UTC';
+
+------ Where are those click taking user? To another episode of the same series/brand or not?
+
+
+SELECT * FROM vb_tv_nav_time_to_click
+JOIN
+lIMIT 5;
 
 
 -------------------

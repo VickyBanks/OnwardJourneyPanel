@@ -1,0 +1,16 @@
+SELECT DISTINCT dt,
+                unique_visitor_cookie_id,
+                visit_id,
+                event_position,
+                event_start_datetime,
+                attribute,
+                left(right(placement, 13), 8) AS current_ep_id,
+                result                        AS next_ep_id
+FROM s3_audience.publisher
+WHERE container LIKE '%page-section-related%'
+  AND attribute LIKE '%page-section-related~select%'
+  AND metadata LIKE '%iplayer::bigscreen-html%'
+  AND dt = 20191101
+  --AND dt <= 20191114
+ORDER BY unique_visitor_cookie_id, visit_id, event_position
+LIMIT 10;
