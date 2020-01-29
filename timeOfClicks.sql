@@ -12,12 +12,13 @@ SELECT DISTINCT dt,
                 left(right(placement, 13), 8) AS current_ep_id,
                 result                        AS next_ep_id
 FROM s3_audience.publisher
-WHERE container LIKE '%page-section-related%'
-  AND attribute LIKE '%page-section-related~select%'
+WHERE (attribute LIKE '%page-section-related~select%' OR attribute LIKE '%page-section-rec~select%')
   AND metadata LIKE '%iplayer::bigscreen-html%'
   AND dt >= 20191101
   AND dt <= 20191114
 ORDER BY unique_visitor_cookie_id, visit_id, event_position;
+
+
 
 SELECT *
 FROM vb_tv_nav_select
@@ -43,8 +44,8 @@ FROM (SELECT DISTINCT a.dt,
         AND a.dt <= 20191114)
 GROUP BY nav_click;
 
--- with click =  4,505,569 = 10%
--- no click   = 41,987,593 = 90%
+-- with click =  4,813,675 = 10%
+-- no click   = 41,679,487 = 90%
 
 -- Get all events for those users who click the onward journey panel.
 DROP TABLE IF EXISTS vb_tv_nav;
@@ -70,7 +71,7 @@ FROM s3_audience.publisher p
 
 SELECT *
 FROM vb_tv_nav_select
-LIMIT 5;
+LIMIT 50;
 
 -- Add in row number to enable the first instance from a visit to be classified as the start of viewing
 DROP TABLE IF EXISTS vb_tv_nav_num;
@@ -95,9 +96,10 @@ FROM vb_tv_nav_num
 ORDER BY unique_visitor_cookie_id, visit_id, event_position;
 
 
-/*SELECT *
+SELECT *
 FROM vb_tv_nav_new_content_flag
-ORDER BY unique_visitor_cookie_id, visit_id, event_position;*/
+WHERE visit_id = 10294884
+ORDER BY unique_visitor_cookie_id, visit_id, event_position;
 
 -- Select the rows where new content is flagged and the rows where the click event is given
 -- Add in the time of the previous event as a new column to be used for calculations
@@ -118,6 +120,7 @@ FROM (
          SELECT *
          FROM vb_tv_nav_new_content_flag
          WHERE attribute = 'page-section-related~select'
+            OR attribute = 'page-section-rec~select'
             OR viewing_session IS NOT NULL
          ORDER BY unique_visitor_cookie_id, visit_id, event_position)
 ORDER BY dt, unique_visitor_cookie_id, visit_id, event_position;
@@ -136,25 +139,31 @@ CREATE TABLE vb_tv_nav_time_to_click AS
 SELECT dt,
        unique_visitor_cookie_id,
        visit_id,
+       CASE WHEN attribute = 'page-section-related~select' THEN 'related-select'
+           WHEN attribute ='page-section-rec~select' THEN 'rec-select' END AS menu_type,
        current_ep_id,
        event_start_datetime,
        previous_event_start_datetime,
        DATEDIFF(s, CAST(previous_event_start_datetime AS TIMESTAMP),
                 CAST(event_start_datetime AS TIMESTAMP)) AS time_since_content_start_sec
 FROM vb_tv_nav_key_events
-WHERE attribute = 'page-section-related~select'
+WHERE attribute = 'page-section-related~select' OR attribute = 'page-section-rec~select'
 ORDER BY unique_visitor_cookie_id, visit_id, event_position;
 
-SELECT visit_id, time_since_content_start_sec
+SELECT menu_type, count(visit_id) FROM vb_tv_nav_time_to_click GROUP BY menu_type;
+
+-- menu_type, count visits
+-- related-select = 6,559,953
+-- rec-select     =   855,106
+
+
+-- Data to go into R script
+SELECT menu_type, visit_id, time_since_content_start_sec
 FROM vb_tv_nav_time_to_click;
 
-SELECT *
-FROM vb_tv_nav_time_to_click
-WHERE visit_id = 784641
-ORDER BY dt, event_start_datetime;
 
 -- look at groupings in minutes
-SELECT CASE
+SELECT menu_type, CASE
            WHEN time_since_content_start_sec >= 0 AND time_since_content_start_sec < 60 THEN '0-1'
            WHEN time_since_content_start_sec >= 60 AND time_since_content_start_sec < 300 THEN '1-5'
            WHEN time_since_content_start_sec >= 300 AND time_since_content_start_sec < 600 THEN '5-10'
@@ -166,20 +175,22 @@ SELECT CASE
            END AS time_ranges,
        count(visit_id)
 FROM vb_tv_nav_time_to_click
-GROUP BY 1;
+GROUP BY 1,2;
 
 
 
-ALTER TABLE vb_tv_nav_time_to_click
+/*ALTER TABLE vb_tv_nav_time_to_click
     ADD COLUMN time_since_content_start timestamptz;
 SELECT *
 FROM vb_tv_nav_time_to_click;
 UPDATE vb_tv_nav_time_to_click
 SET time_since_content_start=
             to_timestamp(event_start_datetime - previous_event_start_datetime, 'YYYY-MM-DD HH24:MI:SS') at time zone
-            'Etc/UTC';
+            'Etc/UTC';*/
 
-SELECT * FROM vb_tv_nav_time_to_click WHERE dt = 20191111 AND visit_id =17686132;
+
+
+
 
 
 
@@ -226,11 +237,13 @@ DROP TABLE IF EXISTS vb_vmb_subset_temp;
 
 -- For each click on the nav bar get the brand & series IDs of the content, the episode number, the running episode count(i.e over many series) for the current and next content.
 -- This will be used to see if people click onto the same or different brands/series
+DROP TABLE IF EXISTS vb_tv_nav_next_ep_full_info;
 CREATE TABLE vb_tv_nav_next_ep_full_info AS
 SELECT a.dt,
        a.unique_visitor_cookie_id,
        a.time_since_content_start_sec,
        a.visit_id,
+       a.menu_type,
        c.brand_id       AS current_brand_id,
        c.brand_title    AS current_brand_title,
        c.series_id      AS current_series_id,
@@ -260,8 +273,9 @@ SELECT * FROM vb_tv_nav_next_ep_full_info limit 5;
 
 
 -- Identify if people have clicked onto content of the same brand, same brand & same series, next episode of content or unrelated content.
+DROP TABLE IF EXISTS vb_tv_nav_next_ep_summary;
 CREATE TABLE vb_tv_nav_next_ep_summary AS
-SELECT dt,unique_visitor_cookie_id, visit_id, time_since_content_start_sec,
+SELECT dt,unique_visitor_cookie_id, visit_id, menu_type,time_since_content_start_sec,
        CASE
            WHEN current_brand_id = next_brand_id THEN 1
            ELSE 0 END AS same_brand,
@@ -275,10 +289,19 @@ SELECT dt,unique_visitor_cookie_id, visit_id, time_since_content_start_sec,
 FROM vb_tv_nav_next_ep_full_info
 ORDER BY dt, visit_id;
 
--- How many journey's are in the same brand?
-SELECT next_ep, count(visit_id) FROM
+
+SELECT * FROM vb_tv_nav_next_ep_summary LIMIT 5;
+
+-- How many journey's are the next episode?
+SELECT menu_type, next_ep, count(visit_id) FROM
 vb_tv_nav_next_ep_summary
-GROUP BY next_ep;
+GROUP BY menu_type, next_ep;
+
+/*menu_type,    next_ep,    count
+rec-select,     1,             10,029
+rec-select,     0,            725,981
+related-select, 1,          2,321,328
+related-select, 0,          4,983,210 */
 
 
 
