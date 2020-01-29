@@ -76,7 +76,7 @@ ggplot(data = clickTimeGroups, aes(x=timeRange_sec, y=numInRange))+
                position = position_stack(vjust = 0.5),
                colour="black",
                fill = "white")+
-    geom_label(data=subset(clickTimeMinsMenu, perc >= 4 & perc < 9),
+    geom_label(data=subset(clickTimeMinsMenu, perc >= 5 & perc < 9),
                aes(label=paste0(sprintf("%1.0f", perc),"%"),),
                position = position_stack(vjust = 1.6),
                colour="black", 
