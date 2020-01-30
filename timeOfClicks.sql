@@ -139,18 +139,22 @@ CREATE TABLE vb_tv_nav_time_to_click AS
 SELECT dt,
        unique_visitor_cookie_id,
        visit_id,
-       CASE WHEN attribute = 'page-section-related~select' THEN 'related-select'
-           WHEN attribute ='page-section-rec~select' THEN 'rec-select' END AS menu_type,
+       CASE
+           WHEN attribute = 'page-section-related~select' THEN 'related-select'
+           WHEN attribute = 'page-section-rec~select' THEN 'rec-select' END AS menu_type,
        current_ep_id,
        event_start_datetime,
        previous_event_start_datetime,
        DATEDIFF(s, CAST(previous_event_start_datetime AS TIMESTAMP),
-                CAST(event_start_datetime AS TIMESTAMP)) AS time_since_content_start_sec
+                CAST(event_start_datetime AS TIMESTAMP))                    AS time_since_content_start_sec
 FROM vb_tv_nav_key_events
-WHERE attribute = 'page-section-related~select' OR attribute = 'page-section-rec~select'
+WHERE attribute = 'page-section-related~select'
+   OR attribute = 'page-section-rec~select'
 ORDER BY unique_visitor_cookie_id, visit_id, event_position;
 
-SELECT menu_type, count(visit_id) FROM vb_tv_nav_time_to_click GROUP BY menu_type;
+SELECT menu_type, count(visit_id)
+FROM vb_tv_nav_time_to_click
+GROUP BY menu_type;
 
 -- menu_type, count visits
 -- related-select = 6,559,953
@@ -163,7 +167,8 @@ FROM vb_tv_nav_time_to_click;
 
 
 -- look at groupings in minutes
-SELECT menu_type, CASE
+SELECT menu_type,
+       CASE
            WHEN time_since_content_start_sec >= 0 AND time_since_content_start_sec < 60 THEN '0-1'
            WHEN time_since_content_start_sec >= 60 AND time_since_content_start_sec < 300 THEN '1-5'
            WHEN time_since_content_start_sec >= 300 AND time_since_content_start_sec < 600 THEN '5-10'
@@ -175,7 +180,7 @@ SELECT menu_type, CASE
            END AS time_ranges,
        count(visit_id)
 FROM vb_tv_nav_time_to_click
-GROUP BY 1,2;
+GROUP BY 1, 2;
 
 
 
@@ -189,18 +194,13 @@ SET time_since_content_start=
             'Etc/UTC';*/
 
 
-
-
-
-
-
-
 -------- SECTION 2 ---  Find where those click taking the user - -- i.e another episode of the same series/brand or not? ---------------------
 
 -- Create a simple subset of the VMB for just TV episodes ignoring radio or tv clips/trailers
 DROP TABLE IF EXISTS vb_vmb_subset_temp;
 CREATE TABLE vb_vmb_subset_temp AS
-SELECT DISTINCT a.brand_id,
+SELECT DISTINCT a.master_brand_name,
+                a.brand_id,
                 a.brand_title,
                 a.series_id,
                 a.series_title,
@@ -220,18 +220,56 @@ ORDER BY a.brand_id,
          a.episode_id,
          b.episode_number;
 
+-- alter tables to make different versions of series distinct
+
+ALTER TABLE vb_vmb_subset_temp
+    ADD series_title_new varchar;
+ALTER TABLE vb_vmb_subset_temp
+    ADD brand_title_new varchar;
+
+-- For things that are have multiple versions, create a new brand title to be able to distinctly number those series compared to the regular series.
+UPDATE vb_vmb_subset_temp
+SET brand_title_new = (
+    CASE WHEN series_title ILIKE '%reversion%' THEN brand_title+' Reversion'
+     WHEN series_title ILIKE '%version%' THEN brand_title+' Alternative Version'
+     WHEN series_title ILIKE '%(Scotland)%' THEN brand_title+' (Scotland)'
+     WHEN series_title ILIKE '%- extra%' THEN brand_title+' - Extra'
+     WHEN series_title ILIKE '%(additional content)%' THEN brand_title+' (Additional Content)'
+     WHEN series_title ILIKE '%shorts%' THEN brand_title+' Shorts'
+     WHEN series_title ILIKE '%cutdowns%' THEN brand_title+' Cutdowns'
+        ELSE brand_title
+    END
+    );
+
+-- To allow numerical ordering
+UPDATE vb_vmb_subset_temp
+SET series_title_new = (
+    CASE
+        WHEN series_title ILIKE 'Series 1' THEN 'Series 01'
+        WHEN series_title ILIKE 'Series 2' THEN 'Series 02'
+        WHEN series_title ILIKE 'Series 3' THEN 'Series 03'
+        WHEN series_title ILIKE 'Series 4' THEN 'Series 04'
+        WHEN series_title ILIKE 'Series 5' THEN 'Series 05'
+        WHEN series_title ILIKE 'Series 6' THEN 'Series 06'
+        WHEN series_title ILIKE 'Series 7' THEN 'Series 07'
+        WHEN series_title ILIKE 'Series 8' THEN 'Series 08'
+        WHEN series_title ILIKE 'Series 9' THEN 'Series 09'
+        ELSE series_title
+        END);
+
+
 -- Number episodes sequentially across all series.
+DROP TABLE IF EXISTS vb_vmb_subset;
 CREATE TABLE vb_vmb_subset AS
 SELECT *,
        row_number()
-       over (PARTITION BY brand_title ORDER BY brand_title, series_title, episode_number) AS running_ep_count
+       over (PARTITION BY brand_title_new ORDER BY brand_title_new, series_title_new, episode_number) AS running_ep_count
 FROM vb_vmb_subset_temp
 WHERE episode_number IS NOT NULL -- eliminates anything that has not been given an episode number
 ORDER BY brand_title,
          series_title,
          episode_number;
 
---SELECT * FROM vb_vmb_subset WHERE episode_id = 'b007cldz';
 
 DROP TABLE IF EXISTS vb_vmb_subset_temp;
 
@@ -244,21 +282,21 @@ SELECT a.dt,
        a.time_since_content_start_sec,
        a.visit_id,
        a.menu_type,
-       c.brand_id       AS current_brand_id,
-       c.brand_title    AS current_brand_title,
-       c.series_id      AS current_series_id,
-       c.series_title   AS current_series_title,
+       c.brand_id         AS current_brand_id,
+       c.brand_title      AS current_brand_title,
+       c.series_id        AS current_series_id,
+       c.series_title     AS current_series_title,
        a.current_ep_id,
-       c.episode_title  AS current_ep_title,
-       c.episode_number AS current_ep_num,
+       c.episode_title    AS current_ep_title,
+       c.episode_number   AS current_ep_num,
        c.running_ep_count AS current_running_ep_count,
-       d.brand_id       AS next_brand_id,
-       d.brand_title    AS next_brand_title,
-       d.series_id      AS next_series_id,
-       d.series_title   AS next_series_title,
+       d.brand_id         AS next_brand_id,
+       d.brand_title      AS next_brand_title,
+       d.series_id        AS next_series_id,
+       d.series_title     AS next_series_title,
        b.next_ep_id,
-       d.episode_title  AS next_ep_title,
-       d.episode_number AS next_ep_num,
+       d.episode_title    AS next_ep_title,
+       d.episode_number   AS next_ep_num,
        d.running_ep_count AS next_running_ep_count
 FROM vb_tv_nav_time_to_click a
          JOIN vb_tv_nav_select b ON a.dt = b.dt AND
@@ -269,40 +307,66 @@ FROM vb_tv_nav_time_to_click a
          JOIN vb_vmb_subset d ON b.next_ep_id = d.episode_id
 ;
 
-SELECT * FROM vb_tv_nav_next_ep_full_info limit 5;
+SELECT *
+FROM vb_tv_nav_next_ep_full_info
+limit 5;
 
 
 -- Identify if people have clicked onto content of the same brand, same brand & same series, next episode of content or unrelated content.
 DROP TABLE IF EXISTS vb_tv_nav_next_ep_summary;
 CREATE TABLE vb_tv_nav_next_ep_summary AS
-SELECT dt,unique_visitor_cookie_id, visit_id, menu_type,time_since_content_start_sec,
+SELECT dt,
+       unique_visitor_cookie_id,
+       visit_id,
+       menu_type,
+       time_since_content_start_sec,
        CASE
            WHEN current_brand_id = next_brand_id THEN 1
            ELSE 0 END AS same_brand,
        CASE
-           WHEN current_brand_id = next_brand_id AND current_series_id = next_series_id THEN 1
-           ELSE 0 END AS same_brand_series,
+           WHEN current_brand_id = next_brand_id AND current_series_id = next_series_id THEN 1 -- same brand and series
+           WHEN current_brand_id = next_brand_id AND current_series_id != next_series_id THEN 0 -- same brand but not same series
+           ELSE 0 END AS same_brand_series, -- not same brand
        CASE
-           WHEN current_brand_id = next_brand_id AND current_series_id = next_series_id AND
-                current_running_ep_count + 1 = next_running_ep_count THEN 1
+           WHEN current_brand_id = next_brand_id AND current_series_id = next_series_id AND current_running_ep_count + 1 = next_running_ep_count THEN 1 --same brand, series and next episode
+           WHEN current_brand_id = next_brand_id AND current_series_id != next_series_id AND current_running_ep_count + 1 = next_running_ep_count THEN 1 -- same brand not series but next episode (i.e last ep of one series, first of next series)
            ELSE 0 END AS next_ep
 FROM vb_tv_nav_next_ep_full_info
 ORDER BY dt, visit_id;
 
+-- data to send out to R
+SELECT * FROM vb_tv_nav_next_ep_summary;
 
-SELECT * FROM vb_tv_nav_next_ep_summary LIMIT 5;
+
+--Checks
+/*SELECT *
+FROM vb_tv_nav_next_ep_summary
+WHERE same_brand = 1 AND same_brand_series = 1 AND next_ep = 1 LIMIT 10;*/
+
+SELECT visit_id,current_brand_title, current_series_title, current_ep_num, current_running_ep_count, next_brand_title, next_series_title, next_ep_num, next_running_ep_count
+FROM vb_tv_nav_next_ep_full_info
+WHERE visit_id = 765034 OR visit_id = 2251784 OR visit_id = 3250721
+ORDER BY visit_id, time_since_content_start_sec;
+
+SELECT visit_id, time_since_content_start_sec, same_brand, same_brand_series, next_ep FROM vb_tv_nav_next_ep_summary
+WHERE visit_id = 765034 OR visit_id = 2251784 OR visit_id = 3250721
+ORDER BY visit_id, time_since_content_start_sec;*/
+
 
 -- How many journey's are the next episode?
-SELECT menu_type, next_ep, count(visit_id) FROM
-vb_tv_nav_next_ep_summary
-GROUP BY menu_type, next_ep;
+SELECT same_brand, same_brand_series, next_ep, count(visit_id)
+FROM vb_tv_nav_next_ep_summary
+GROUP BY same_brand, same_brand_series, next_ep;
 
-/*menu_type,    next_ep,    count
-rec-select,     1,             10,029
-rec-select,     0,            725,981
-related-select, 1,          2,321,328
-related-select, 0,          4,983,210 */
+-- How many journey's are the same brand
+SELECT menu_type, same_brand, count(visit_id)
+FROM vb_tv_nav_next_ep_summary
+GROUP BY menu_type, same_brand;
 
+SELECT *
+FROM vb_tv_nav_next_ep_summary
+WHERE next_ep = 1
+LIMIT 5;
 
 
 -------------------
@@ -321,11 +385,11 @@ SELECT DISTINCT brand_id,
                 clip_title
 FROM prez.scv_vmb
 WHERE --brand_id = 'p07ptd54'
-   --OR series_id = 'p07ptd54'
-   --or
+      --OR series_id = 'p07ptd54'
+      --or
       episode_id = 'b007cldz'
-   --OR clip_id = 'p07ptd54'
-   ;
+--OR clip_id = 'p07ptd54'
+;
 
 
 -- WHEN left(right(placement, 13), 8) LIKE 'yer.load' THEN NULL
