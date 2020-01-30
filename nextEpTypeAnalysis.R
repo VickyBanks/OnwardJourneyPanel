@@ -43,46 +43,44 @@ nextEpInfo %>%
             nextEpCount = sum(next_ep)
   )
 
+#Find the number of visits in each group
+# Brand Series NextEp
+# 0 = no, 1 = yes
+
 nextEpInfo %>% group_by(menuType) %>%
-  mutate(test = paste(same_brand,same_brand_series,next_ep)) %>%
-  group_by(test)
-  
-  group_by(menuType,same_brand, same_brand_series, next_ep) %>%
-  summarise(test = n())
-########
-nodes = data.frame("name" = factor(
-  c(
-    "g1_orange",
-    "g2_aubergine",
-    "g3_aubergine",
-    "g4_blue",
-    "g5_blue",
-    "g6_green",
-    "g7_green",
-    "g8_yellow",
-    "g9_yellow"
-  )
-),
-"group" = as.character(c(1, 2, 2, 3, 3, 4, 4, 5, 5)))
+  mutate(nextEpClass = paste(same_brand,same_brand_series,next_ep)) %>%
+  group_by(nextEpClass) %>%
+  summarise(numVisits = n()) 
 
+path01 <- nextEpInfo %>% filter(same_brand == 0) %>%summarise(path01 = n()) #different brand
+path02 <- nextEpInfo %>% filter(same_brand == 1) %>%summarise(path02 = n()) #same brand
+path23 <- nextEpInfo %>% filter(same_brand == 1 & same_brand_series == 1) %>%summarise(path23 = n()) #same brand same series
+path24 <- nextEpInfo %>% filter(same_brand == 1 & same_brand_series == 0) %>%summarise(path24 = n()) #same brand different series
+path35 <- nextEpInfo %>% filter(same_brand == 1 & same_brand_series == 1 & next_ep == 1 ) %>%summarise(path35 = n()) #same brand same series next ep
+path36 <- nextEpInfo %>% filter(same_brand == 1 & same_brand_series == 1 & next_ep == 0 ) %>%summarise(path36 = n()) #same brand same series not next ep
+path47 <- nextEpInfo %>% filter(same_brand == 1 & same_brand_series == 0 & next_ep == 1 ) %>%summarise(path47 = n()) #same brand not same series next ep
+path48 <- nextEpInfo %>% filter(same_brand == 1 & same_brand_series == 0 & next_ep == 0 ) %>%summarise(path48 = n()) #same brand not same series not next ep
+
+
+
+
+######## Sankey Diagram for all clicks 
+nodes = data.frame("name" = factor(c("All Clicks","Diff Brand","Same Brand","Same Series","Diff Series","Next Ep","Other Ep","Next Ep","Other Ep")),
+                   "group" = as.character(c(1, 2, 2, 3, 3, 4, 4, 5, 5)))
 nodes
-
 links <- as.data.frame(matrix(byrow = T, ncol = 3, 
-                              c(
-                                0, 1, 1400,
-                                0, 2, 1860,
-                                1, 3, 400,
-                                1, 4, 1000,
-                                3, 5, 100,
-                                3, 6, 150,
-                                4, 7, 100,
-                                4, 8, 50)))
-
+                              c(0, 1, 719071,
+                                0, 2, 7320318,
+                                2, 3, 6393271,
+                                2, 4, 927047,
+                                3, 5, 2324600,
+                                3, 6, 4068671,
+                                4, 7, 16959,
+                                4, 8, 911088)))
 names(links) <- c("source","target","value")
-
 links
 
-sankeyNetwork(Links = links, Nodes = nodes, Source = "source", 
+allClicksSankey <- sankeyNetwork(Links = links, Nodes = nodes, Source = "source", 
               Target = "target", Value = "value", NodeID = "name", 
               NodeGroup = "group", fontSize = 12)
-
+allClicksSankey
