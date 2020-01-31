@@ -46,7 +46,7 @@ GROUP BY nav_click;
 
 -- with click =  4,813,675 = 10%
 -- no click   = 41,679,487 = 90%
-
+SELECT * FROM vb_tv_nav_next_ep_summary LIMIT 5;
 -- Get all events for those users who click the onward journey panel.
 DROP TABLE IF EXISTS vb_tv_nav;
 CREATE TABLE vb_tv_nav AS
