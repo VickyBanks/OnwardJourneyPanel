@@ -65,7 +65,16 @@ path48 <- nextEpInfo %>% filter(same_brand == 1 & same_brand_series == 0 & next_
 
 
 ######## Sankey Diagram for all clicks 
-nodes = data.frame("name" = factor(c("All Clicks","Diff Brand","Same Brand","Same Series","Diff Series","Next Ep","Other Ep","Next Ep","Other Ep")),
+#"All Clicks","Diff Brand - 9%","Same Brand - 91%","Diff Series - 13%","Next Ep - 36%","Other Ep - 64%","Next Ep - 2%","Other Ep - 98%"
+nodes = data.frame("name" = factor(c("All Clicks",
+                                     "Diff Brand - 9%",
+                                     "Same Brand - 91%",
+                                     "Same Series - 80%",
+                                     "Diff Series - 12%",
+                                     "Next Ep - 29%",
+                                     "Other Ep - 51%",
+                                     "Next Ep - 0.2%",
+                                     "Other Ep - 11%")),
                    "group" = as.character(c(1, 2, 2, 3, 3, 4, 4, 5, 5)))
 nodes
 links <- as.data.frame(matrix(byrow = T, ncol = 3, 
@@ -84,3 +93,4 @@ allClicksSankey <- sankeyNetwork(Links = links, Nodes = nodes, Source = "source"
               Target = "target", Value = "value", NodeID = "name", 
               NodeGroup = "group", fontSize = 12)
 allClicksSankey
+x
