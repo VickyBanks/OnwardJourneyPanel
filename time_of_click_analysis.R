@@ -135,6 +135,7 @@ ggplot(data = nextEpInfoMins, aes(x=timeRange_sec, y=numInRange/1000000, fill = 
              colour="black", 
              fill = "white")+
   ggtitle("Number of Clicks to the Onward Journey Panel 'x' Minutes After Content Start \n PS_IPLAYER - Big Screen - 2019-11-01 to 2019-11-14" )+
+  scale_fill_manual(name = "Click Destination", values=wes_palette(n=5, name="Zissou1"))+
   theme_classic() +
   facet_wrap(~ clickDestination, ncol = 2, nrow = 3, scales = "free") +
  theme(legend.position = "none")
