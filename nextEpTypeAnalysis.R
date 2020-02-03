@@ -89,8 +89,12 @@ links <- as.data.frame(matrix(byrow = T, ncol = 3,
 names(links) <- c("source","target","value")
 links
 
+nodes$group<-as.factor(c("a","b","c","d","e","f","g","h","i"))
+
+colours <- 'd3.scaleOrdinal() .domain(["a","b","c","d","e","f","g","h","i"]) 
+.range(["#043570", "#F21A00" , "#339966", "#5AA9BC", "#E6BE15","#3B9AB2", "#78B7C5","#EBCC2A", "#E1AF00"])'
+
 allClicksSankey <- sankeyNetwork(Links = links, Nodes = nodes, Source = "source", 
               Target = "target", Value = "value", NodeID = "name", 
-              NodeGroup = "group", fontSize = 12)
+              NodeGroup = "group", colourScale = colours, fontSize = 12)
 allClicksSankey
-x
