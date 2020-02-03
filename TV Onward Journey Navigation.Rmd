@@ -91,9 +91,15 @@ links <- as.data.frame(matrix(byrow = T, ncol = 3,
                                 4, 8, 911088)))
 names(links) <- c("source","target","value")
 
+#Colour to match bar charts
+nodes$group<-as.factor(c("a","b","c","d","e","f","g","h","i"))
+colours <- 'd3.scaleOrdinal() .domain(["a","b","c","d","e","f","g","h","i"]) 
+.range(["#043570", "#F21A00" , "#339966", "#5AA9BC", "#E6BE15","#3B9AB2", "#78B7C5","#EBCC2A", "#E1AF00"])'
+
+
 allClicksSankey <- sankeyNetwork(Links = links, Nodes = nodes, Source = "source", 
               Target = "target", Value = "value", NodeID = "name", 
-              NodeGroup = "group", fontSize = 12)
+              NodeGroup = "group", colourScale = colours, fontSize = 12)
 allClicksSankey
 
 ```
@@ -130,7 +136,7 @@ The number of clicks faling within each minute was counted and is displayed belo
 
 ```{r timeToClickGraph, echo = FALSE}
 ggplot(data = clickTimeMinutes, aes(x=timeRange_sec, y=numInRange))+
-    geom_bar(stat = "identity", fill = "blue")+
+    geom_bar(stat = "identity", fill = "#043570")+
     scale_y_continuous(limits = c(0,5000000), breaks = c(0,250000, 1000000,2000000,3000000,4000000,5000000), 
                        labels = c(0,0.25, 1,2,3,4,5))+
     ylab("Number of Visits with Click in Time Range (millions)")+
