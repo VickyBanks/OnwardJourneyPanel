@@ -1,0 +1,91 @@
+---
+title: "TV Onward Navigation Bar Journeys"
+author: "VickyBanks"
+date: "03/02/2020"
+output: 
+  html_document:
+  toc_float: true
+  toc: true
+  theme: cerulean
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(error = FALSE)
+knitr::opts_chunk$set(warning = FALSE)
+knitr::opts_chunk$set(message = FALSE)
+library(tidyverse)
+library(DBI)
+library(dbplyr)
+library("RSQLite")
+library(knitr)
+library(gridExtra)
+library(grid)
+library(ggplot2)
+library(reshape2)
+library(lubridate)
+library(readr)
+library(kableExtra)
+library(scales)
+library(RColorBrewer)
+library(wesanderson)
+```
+
+#Overview
+The project was looking at the onward naviagtion bar on iPlayer big screen that users access during playback of content. The menu consists of two parts: related content from the same brand or recomendations of programs regarded as similar to this brand. 
+
+The time period analysed was 2019-11-01 to 2019-11-14 and all visits to big screen where the navigation bar was click were included. During this time there were 4,813,675 (~10%) visits containing at least one click and 41,679,487 (~90%) without a click. The click was identified by the labels 'page-section-related~select' and 'page-section-rec~select' in the attribute field of the s3_audience.publosher table in SCV. Of all clicks identified 12% were to the recommended section and 88% to the related section.
+
+# Time To Click
+To determine the time user's took to click content, each action in their visit was collected from the s3_audience.publosher table in SCV. The episode ID of the content being viewed when the user clicked was found and the beginning of their viewing identified as the first time that episode ID appeared. This was identified such that if a user viewed a piece of content, then left the content and then returned, the start time would be the return time, not the initial view. The time between the start of content viewing and clicking the navigation bar was calculated in seconds. 
+
+```{r timeToClick, echo = FALSE}
+#streamLabels <- read.csv("D:\\Projects\\CMM-iPlayerRadio\\data\\listeningStreamLabels.csv",header = TRUE)
+#kable(streamLabels, row.names = FALSE, col.names = c("Label Name", "Data Type") ) %>% #kable_styling(bootstrap_options = c("striped", "hover"), full_width = F) 
+
+clickTime<- read.csv("time_to_click.csv", header = TRUE)
+clickTime <- clickTime %>% rename(clickTime_sec = time_since_content_start_sec)
+clickTime <- clickTime %>% rename(menuType = menu_type)
+clickTime<- na.omit(clickTime)
+clickTimeMinutes <- clickTime %>% 
+    mutate(timeRange_sec = cut(clickTime_sec, 
+                               breaks = c(-1, 60,120,180,240, 300,360,420,480,540, 600,Inf),
+                               labels = c("0-1", "1-2", "2-3", "3-4", "4-5", "5-6", "6-7", "7-8", "8-9", "9-10", "10+")))
+
+kable(clickTimeMinutes[9:14,], row.names = FALSE, col.names = c("Menu Section", "Visit ID", "Time to Click (sec)", "Minute Band") ) %>% kable_styling(bootstrap_options = c("striped", "hover"), full_width = F) 
+
+clickTimeMinutes<- clickTimeMinutes %>% group_by(timeRange_sec) %>% 
+    summarize(numInRange=n()) %>%
+    mutate(perc = round(100*numInRange/sum(numInRange),1))
+```
+
+The number of clicks faling within each minute was counted and is displayed below.
+
+
+```{r timeToClickGraph, echo = FALSE}
+ggplot(data = clickTimeMinutes, aes(x=timeRange_sec, y=numInRange))+
+    geom_bar(stat = "identity", fill = "blue")+
+    scale_y_continuous(limits = c(0,5000000), breaks = c(0,250000, 1000000,2000000,3000000,4000000,5000000), 
+                       labels = c(0,0.25, 1,2,3,4,5))+
+    ylab("Number of Visits with Click in Time Range (millions)")+
+    xlab("Time Range (mins)")+
+    geom_hline(yintercept = 250000)+
+    geom_label(data=subset(clickTimeMinutes, perc > 6),
+              aes(label=paste0(sprintf("%1.0f", perc),"%"),),
+              position = position_stack(vjust = 0.5),
+              colour="black")+
+    geom_label(data=subset(clickTimeMinutes, perc >= 5 & perc < 6),
+               aes(label=paste0(sprintf("%1.0f", perc),"%"),),
+               position = position_stack(vjust = 1.6),
+               colour="black")+
+    ggtitle("Number of Clicks to the Onward Journey Panel 'x' Minutes After Content Start \n PS_IPLAYER - Big Screen - 2019-11-01 to 2019-11-14" )+
+  theme_classic() 
+
+
+
+```
+
+
+# Click Destination
+
+# Click Origin
