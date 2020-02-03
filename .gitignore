@@ -35,5 +35,5 @@ vignettes/*.pdf
 *.utf8.md
 *.knit.md
 
-*/.csv
-*/.xlsx
+*.csv
+*.xlsx
