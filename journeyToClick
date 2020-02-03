@@ -3,4 +3,98 @@
    use featured home script to identify how they got to that content.
    -> keep in what rail it was from if one home
    -> need to also include things from categories pages and channels
- */
+
+
+   1. Select all visits
+   2. Select the click to the menu
+   3. Join to a content item click that came before - make sure same brand/series/episode ID
+   4. Prevent duplication by joining only with click that came directly before.
+   5. Count number of clicks where content came from each prior location
+   6. Join into where the click took them.*/
+
+
+-- Select visits and UV on TV where the onward nav was clicked
+DROP TABLE IF EXISTS vb_tv_nav_select;
+CREATE TABLE vb_tv_nav_select AS
+SELECT DISTINCT dt,
+                unique_visitor_cookie_id,
+                visit_id,
+                event_position,
+                event_start_datetime,
+                attribute,
+                left(right(placement, 13), 8) AS current_ep_id,
+                result                        AS next_ep_id
+FROM s3_audience.publisher
+WHERE (attribute LIKE '%page-section-related~select%' OR attribute LIKE '%page-section-rec~select%')
+  AND metadata LIKE '%iplayer::bigscreen-html%'
+  AND dt = 20191101
+  --AND dt <= 20191114
+ORDER BY unique_visitor_cookie_id, visit_id, event_position;
+
+-- Get all events for those users who click the onward journey panel.
+DROP TABLE IF EXISTS vb_tv_nav;
+CREATE TABLE vb_tv_nav AS
+SELECT DISTINCT p.dt,
+                p.unique_visitor_cookie_id,
+                p.visit_id,
+                p.event_position,
+                p.attribute,
+                p.placement,
+                CASE
+                    WHEN left(right(p.placement, 13), 8) SIMILAR TO '%[0-9]%'
+                        THEN left(right(p.placement, 13), 8) -- if this contains a number then its an ep id, if not make blank
+                    ELSE 'none' END AS current_ep_id,
+                p.result            AS next_ep_id,
+                to_timestamp(p.event_start_datetime, 'YYYY-MM-DD HH24:MI:SS') at time zone
+                'Etc/UTC'           AS event_start_datetime-- convert this to a datetime with time UTC
+FROM s3_audience.publisher p
+         JOIN vb_tv_nav_select vb
+              ON p.dt = vb.dt AND p.unique_visitor_cookie_id = vb.unique_visitor_cookie_id AND
+                 vb.visit_id = p.visit_id AND vb.dt = p.dt;
+
+
+
+-------------------   HERE -------------
+-- Join the starts to any content item click that came before them.
+-- Check the same dt, UV and visit id.
+-- Ensure that the content result is the brand, series or episode id that was started.
+DROP TABLE IF EXISTS valid_starts_temp;
+CREATE TABLE valid_starts_temp AS
+SELECT p.dt,
+       p.bbc_hid3,
+       p.visit_id,
+       p.event_position                                     AS content_event_position,
+       CASE
+           WHEN p.container LIKE '%featured%' THEN 'featured'
+           WHEN p.container NOT LIKE '%featured%' THEN 'not_featured'
+           END                                              AS container,
+       p.attribute                                          AS content_attribute,
+       p.result                                             AS content_result,
+       s.event_position                                     AS start_event_position,
+       s.attribute                                          AS start_attribute,
+       s.result                                             AS start_result,
+       s.brand_id,
+       s.series_id,
+       CAST(s.event_position - p.event_position AS integer) AS content_start_diff
+FROM play_starts s
+         INNER JOIN vb_exp_data p
+                    ON s.visit_id = p.visit_id
+WHERE p.attribute LIKE 'content_item'
+  AND p.publisher_clicks = 1
+  AND s.event_position > p.event_position
+  AND s.dt = p.dt
+  AND s.bbc_hid3 = p.bbc_hid3
+  AND (p.result = s.result OR p.result = s.brand_id OR p.result = s.series_id);
+
+
+-- Prevent any duplication - this selects which ever valid content-item click was closest to (and before) the start event.
+DROP TABLE IF EXISTS valid_starts;
+CREATE TABLE valid_starts AS
+SELECT *
+FROM (SELECT *,
+             row_number()
+             OVER (PARTITION BY dt, bbc_hid3, visit_id, start_event_position ORDER BY content_start_diff) AS duplicate_identifier
+      FROM valid_starts_temp
+      ORDER BY bbc_hid3, visit_id, start_event_position)
+WHERE duplicate_identifier = 1;
+
