@@ -12,89 +12,135 @@
    5. Count number of clicks where content came from each prior location
    6. Join into where the click took them.*/
 
+CREATE TABLE vb_vmb_temp AS
+SELECT DISTINCT brand_title, brand_id, series_title, series_id, episode_id, episode_title
+FROM prez.scv_vmb;
 
 -- Select visits and UV on TV where the onward nav was clicked
 DROP TABLE IF EXISTS vb_tv_nav_select;
 CREATE TABLE vb_tv_nav_select AS
-SELECT DISTINCT dt,
-                unique_visitor_cookie_id,
-                visit_id,
-                event_position,
-                event_start_datetime,
-                attribute,
-                left(right(placement, 13), 8) AS current_ep_id,
-                result                        AS next_ep_id
-FROM s3_audience.publisher
-WHERE (attribute LIKE '%page-section-related~select%' OR attribute LIKE '%page-section-rec~select%')
-  AND metadata LIKE '%iplayer::bigscreen-html%'
-  AND dt = 20191101
+SELECT DISTINCT p.dt,
+                p.unique_visitor_cookie_id,
+                p.visit_id,
+                p.event_position,
+                p.event_start_datetime,
+                p.attribute,
+                vmb.brand_id                     as current_brand_id,
+                vmb.series_id                    AS current_series_id,
+                CASE
+                    WHEN left(right(p.placement, 13), 8) SIMILAR TO '%[0-9]%'
+                        THEN left(right(p.placement, 13), 8) -- if this contains a number then its an ep id, if not make blank
+                    ELSE 'none' END AS current_ep_id,
+                p.result              AS next_ep_id
+FROM s3_audience.publisher p
+LEFT JOIN vb_vmb_temp vmb ON left(right(p.placement, 13), 8) = vmb.episode_id --current_ep_id (i.e the content they were on when the click happened) = episode ID in the VMB
+WHERE (p.attribute LIKE '%page-section-related~select%' OR p.attribute LIKE '%page-section-rec~select%')
+  AND p.metadata LIKE '%iplayer::bigscreen-html%'
+  AND p.destination = 'PS_IPLAYER'
+  AND p.dt = 20191101
   --AND dt <= 20191114
 ORDER BY unique_visitor_cookie_id, visit_id, event_position;
 
--- Get all events for those users who click the onward journey panel.
+
+
+-- Select all the rows with a content-item click (for those visits where the content nav was clicked)
+DROP TABLE IF EXISTS vb_tv_content_clicks;
+CREATE TABLE vb_tv_content_clicks AS
+SELECT DISTINCT p.dt,
+                p.unique_visitor_cookie_id,
+                p.visit_id,
+                p.event_position,
+                p.container,
+                p.attribute,
+                p.placement,
+                p.result
+FROM s3_audience.publisher p
+         JOIN vb_tv_nav_select vb
+              ON p.dt = vb.dt AND p.unique_visitor_cookie_id = vb.unique_visitor_cookie_id AND
+                 vb.visit_id = p.visit_id
+WHERE p.attribute LIKE 'content-item%'
+  AND p.publisher_clicks = 1
+ORDER BY dt, unique_visitor_cookie_id, visit_id, event_position;
+
+
+
+-- Create a table joining the click to the content and the nav click whilst on that content.
+-- Make sure that the content click came before the nav click
+DROP TABLE IF EXISTS vb_tv_content_to_nav_journey_temp;
+CREATE TABLE vb_tv_content_to_nav_journey_temp AS
+SELECT a.dt,
+       a.unique_visitor_cookie_id,
+       a.visit_id,
+       b.event_position AS content_click_event_position,
+       b.container AS content_click_container,
+       b.placement AS content_click_placement,
+       b.result AS content_click_result,
+       a.event_position AS nav_click_event_position,
+       a.attribute      AS nav_menu_type,
+       a.current_brand_id,
+       a.current_series_id,
+       a.current_ep_id,
+       CAST(a.event_position - b.event_position AS integer) AS content_nav_position_diff
+FROM vb_tv_nav_select a
+         JOIN vb_tv_content_clicks b
+              ON a.dt = b.dt AND a.unique_visitor_cookie_id = b.unique_visitor_cookie_id AND a.visit_id = b.visit_id
+WHERE b.event_position < a.event_position
+  AND (b.result = a.current_brand_id OR b.result = a.current_series_id OR b.result = a.current_ep_id)
+ORDER BY a.dt, a.unique_visitor_cookie_id, a.visit_id, b.event_position LIMIT 1000;
+
+SELECT * FROM vb_tv_content_to_nav_journey_temp ORDER BY dt, unique_visitor_cookie_id, visit_id, nav_click_event_position;
+
+-- Prevent any duplication - this selects which ever valid content-item click was closest to (and before) the start event.
+DROP TABLE IF EXISTS vb_tv_content_to_nav_journey;
+CREATE TABLE vb_tv_content_to_nav_journey AS
+SELECT * FROM (
+SELECT *,
+             row_number()
+             OVER (PARTITION BY dt, unique_visitor_cookie_id, visit_id, content_click_event_position ORDER BY content_nav_position_diff) AS duplicate_identifier_1,
+       row_number()
+             OVER (PARTITION BY dt, unique_visitor_cookie_id, visit_id, nav_click_event_position ORDER BY content_nav_position_diff) AS duplicate_identifier_2
+      FROM vb_tv_content_to_nav_journey_temp
+      ORDER BY dt, unique_visitor_cookie_id, visit_id, content_click_event_position)
+WHERE duplicate_identifier_1 = 1 AND duplicate_identifier_2 = 1;
+
+
+
+--------------------------
+
+
+
+
+
+
+
+
+- Get all events for those users who click the onward journey panel, add in the associated brand and series IDs
 DROP TABLE IF EXISTS vb_tv_nav;
 CREATE TABLE vb_tv_nav AS
 SELECT DISTINCT p.dt,
                 p.unique_visitor_cookie_id,
                 p.visit_id,
                 p.event_position,
+                p.container,
                 p.attribute,
                 p.placement,
-                CASE
-                    WHEN left(right(p.placement, 13), 8) SIMILAR TO '%[0-9]%'
-                        THEN left(right(p.placement, 13), 8) -- if this contains a number then its an ep id, if not make blank
-                    ELSE 'none' END AS current_ep_id,
-                p.result            AS next_ep_id,
+                vmb.brand_id                     as current_brand_id,
+                vmb.series_id                    AS current_series_id,
+                ISNULL(vb.current_ep_id, 'null') AS current_ep_id,
+                p.result,
                 to_timestamp(p.event_start_datetime, 'YYYY-MM-DD HH24:MI:SS') at time zone
-                'Etc/UTC'           AS event_start_datetime-- convert this to a datetime with time UTC
+                'Etc/UTC'                        AS event_start_datetime -- convert this to a datetime with time UTC
 FROM s3_audience.publisher p
-         JOIN vb_tv_nav_select vb
-              ON p.dt = vb.dt AND p.unique_visitor_cookie_id = vb.unique_visitor_cookie_id AND
-                 vb.visit_id = p.visit_id AND vb.dt = p.dt;
+         LEFT JOIN vb_tv_nav_select vb
+                   ON p.dt = vb.dt AND p.unique_visitor_cookie_id = vb.unique_visitor_cookie_id AND
+                      vb.visit_id = p.visit_id
+         LEFT JOIN vb_vmb_subset vmb ON vb.current_ep_id = vmb.episode_id
+WHERE p.dt = 20191101
+  AND p.destination = 'PS_IPLAYER'
+  AND p.metadata LIKE '%iplayer::bigscreen-html%';
 
+SELECT * FROM vb_tv_nav  ORDER BY dt, unique_visitor_cookie_id,visit_id, event_position LIMIT 1000;
+SELECT * FROM vb_tv_nav  WHERE attribute LIKE '%content-item%' OR attribute LIKE '%page-section-related~select%'  ORDER BY dt, unique_visitor_cookie_id,visit_id, event_position LIMIT 50;
+SELECT DISTINCT container FROM vb_tv_nav;
 
-
--------------------   HERE -------------
--- Join the starts to any content item click that came before them.
--- Check the same dt, UV and visit id.
--- Ensure that the content result is the brand, series or episode id that was started.
-DROP TABLE IF EXISTS valid_starts_temp;
-CREATE TABLE valid_starts_temp AS
-SELECT p.dt,
-       p.bbc_hid3,
-       p.visit_id,
-       p.event_position                                     AS content_event_position,
-       CASE
-           WHEN p.container LIKE '%featured%' THEN 'featured'
-           WHEN p.container NOT LIKE '%featured%' THEN 'not_featured'
-           END                                              AS container,
-       p.attribute                                          AS content_attribute,
-       p.result                                             AS content_result,
-       s.event_position                                     AS start_event_position,
-       s.attribute                                          AS start_attribute,
-       s.result                                             AS start_result,
-       s.brand_id,
-       s.series_id,
-       CAST(s.event_position - p.event_position AS integer) AS content_start_diff
-FROM play_starts s
-         INNER JOIN vb_exp_data p
-                    ON s.visit_id = p.visit_id
-WHERE p.attribute LIKE 'content_item'
-  AND p.publisher_clicks = 1
-  AND s.event_position > p.event_position
-  AND s.dt = p.dt
-  AND s.bbc_hid3 = p.bbc_hid3
-  AND (p.result = s.result OR p.result = s.brand_id OR p.result = s.series_id);
-
-
--- Prevent any duplication - this selects which ever valid content-item click was closest to (and before) the start event.
-DROP TABLE IF EXISTS valid_starts;
-CREATE TABLE valid_starts AS
-SELECT *
-FROM (SELECT *,
-             row_number()
-             OVER (PARTITION BY dt, bbc_hid3, visit_id, start_event_position ORDER BY content_start_diff) AS duplicate_identifier
-      FROM valid_starts_temp
-      ORDER BY bbc_hid3, visit_id, start_event_position)
-WHERE duplicate_identifier = 1;
-
+SELECT DISTINCT result FROM s3_audience.publisher LIMIT 100;
