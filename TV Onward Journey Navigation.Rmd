@@ -100,7 +100,16 @@ colours <- 'd3.scaleOrdinal() .domain(["a","b","c","d","e","f","g","h","i"])
 allClicksSankey <- sankeyNetwork(Links = links, Nodes = nodes, Source = "source", 
               Target = "target", Value = "value", NodeID = "name", 
               NodeGroup = "group", colourScale = colours, fontSize = 12)
-allClicksSankey
+
+
+htmlwidgets::onRender(allClicksSankey, jsCode =
+        'function(){
+          document.getElementsByTagName("svg")[0].setAttribute("viewBox", "");
+          document.getElementsByTagName("svg")[1].setAttribute("viewBox", "");
+          document.getElementsByTagName("svg")[2].setAttribute("viewBox", "");
+          document.getElementsByTagName("svg")[3].setAttribute("viewBox", "");
+          document.getElementsByTagName("svg")[4].setAttribute("viewBox", "");
+        }')
 
 ```
 
@@ -212,5 +221,4 @@ ggplot(data = nextEpInfoMins, aes(x=timeRange_sec, y=numInRange/1000000, fill = 
 
 
 ```
-
 
