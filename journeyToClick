@@ -28,27 +28,25 @@ FROM prez.scv_vmb;
 -- Select visits and UV on TV where the onward nav was clicked
 DROP TABLE IF EXISTS vb_tv_nav_select;
 CREATE TABLE vb_tv_nav_select AS
-SELECT DISTINCT p.dt,
-                p.unique_visitor_cookie_id,
-                p.visit_id,
-                p.placement,
-                p.event_position,
-                p.event_start_datetime,
-                p.attribute,
-                vmb.brand_id        as current_brand_id,
-                vmb.series_id       AS current_series_id,
+SELECT DISTINCT dt,
+                unique_visitor_cookie_id,
+                visit_id,
+                container,
+                placement,
+                event_position,
+                event_start_datetime,
+                attribute,
                 CASE
-                    WHEN left(right(p.placement, 13), 8) SIMILAR TO '%[0-9]%'
-                        THEN left(right(p.placement, 13), 8) -- if this contains a number then its an ep id, if not make blank
+                    WHEN left(right(placement, 13), 8) SIMILAR TO '%[0-9]%'
+                        THEN left(right(placement, 13), 8) -- if this contains a number then its an ep id, if not make blank
                     ELSE 'none' END AS current_ep_id,
-                p.result            AS next_ep_id
-FROM s3_audience.publisher p
-         LEFT JOIN vb_vmb_temp vmb ON left(right(p.placement, 13), 8) = vmb.episode_id --current_ep_id (i.e the content they were on when the click happened) = episode ID in the VMB
-WHERE (p.attribute LIKE '%page-section-related~select%' OR p.attribute LIKE '%page-section-rec~select%')
-  AND p.metadata LIKE '%iplayer::bigscreen-html%'
-  AND p.destination = 'PS_IPLAYER'
-  AND p.dt = 20200115
-  --AND p.dt <= 20191114
+                result            AS next_ep_id
+FROM s3_audience.publisher
+WHERE (attribute LIKE '%page-section-related~select%' OR attribute LIKE '%page-section-rec~select%')
+  AND metadata LIKE '%iplayer::bigscreen-html%'
+  AND destination = 'PS_IPLAYER'
+  AND dt >= 20200115
+  AND dt <= 20200129
 ORDER BY unique_visitor_cookie_id, visit_id, event_position;
 
 
@@ -67,7 +65,7 @@ SELECT DISTINCT p.dt,
                 p.placement,
                 p.result
 FROM s3_audience.publisher p
-         JOIN vb_tv_nav_select vb
+         JOIN vb_tv_nav_select vb -- this is to bring in only those visits where the nav click happened
               ON p.dt = vb.dt AND p.unique_visitor_cookie_id = vb.unique_visitor_cookie_id AND
                  vb.visit_id = p.visit_id
 WHERE (p.attribute LIKE 'content-item%' OR p.attribute = 'start-watching%' OR p.attribute = 'resume' OR
@@ -94,170 +92,217 @@ FROM s3_audience.publisher p
          JOIN vb_tv_nav_select vb
               ON p.dt = vb.dt AND p.unique_visitor_cookie_id = vb.unique_visitor_cookie_id AND
                  vb.visit_id = p.visit_id
-WHERE (p.attribute LIKE '%squeeze-auto-play%' OR p.attribute LIKE '%end-play%')
+WHERE (p.attribute LIKE '%squeeze-auto-play%' OR p.attribute LIKE '%squeeze-play%' OR p.attribute LIKE '%end-play%' OR p.attribute LIKE '%end-auto-play%')
   AND p.publisher_clicks = 1
 ORDER BY dt, unique_visitor_cookie_id, visit_id, event_position;
 
-SELECT *
-FROM vb_tv_autoplay_clicks
-LIMIT 10;
-SELECT *
-FROM s3_audience.publisher
-WHERE attribute ILIKE 'content-item%' AND placement ILIKE '%channels%'
-   OR placement ILIKE '%categories%' AND destination = 'PS_IPLAYER'
-LIMIT 10;
---SELECT attribute, MIN(event_start_datetime) FROM s3_audience.publisher WHERE attribute LIKE '%squeeze-auto-play%' OR attribute LIKE '%end-play%' GROUP BY attribute;
 
 -- create a table with all the nav clicks and select clicks
 DROP TABLE IF EXISTS vb_tv_content_nav_all;
 CREATE TABLE vb_tv_content_nav_all
 AS
-SELECT a.dt,
-       a.unique_visitor_cookie_id,
-       a.visit_id,
-       a.event_position,
-       a.attribute,
-       a.placement,
-       a.current_ep_id,
-       a.next_ep_id AS click_result,
-       b.brand_title,
-       b.brand_id,
-       b.series_title,
-       b.series_id,
-       b.episode_title,
-       b.episode_id
-FROM vb_tv_nav_select a
-         LEFT JOIN vb_vmb_temp b ON a.current_ep_id = b.episode_id;
-
-INSERT INTO vb_tv_content_nav_all
-SELECT a.dt,
-       a.unique_visitor_cookie_id,
-       a.visit_id,
-       a.event_position,
-       a.attribute,
-       a.placement,
-       CAST(NULL AS varchar) AS current_ep_id,
-       a.result              AS click_result,
-       b.brand_title,
-       b.brand_id,
-       b.series_title,
-       b.series_id,
-       b.episode_title,
-       b.episode_id
-FROM vb_tv_content_clicks a
-         LEFT JOIN vb_vmb_temp b ON a.result = b.episode_id;
-
-INSERT INTO vb_tv_content_nav_all
-SELECT a.dt,
-       a.unique_visitor_cookie_id,
-       a.visit_id,
-       a.event_position,
-       a.attribute,
-       a.placement,
+SELECT dt,
+       unique_visitor_cookie_id,
+       visit_id,
+       event_position,
+       container,
+       attribute,
+       placement,
        current_ep_id,
-       a.next_ep_id AS click_result,
-       b.brand_title,
-       b.brand_id,
-       b.series_title,
-       b.series_id,
-       b.episode_title,
-       b.episode_id
-FROM vb_tv_autoplay_clicks a
-         LEFT JOIN vb_vmb_temp b ON a.current_ep_id = b.episode_id;
+       next_ep_id AS click_result
+FROM vb_tv_nav_select;
 
-SELECT *
-FROM vb_tv_content_nav_all
-ORDER BY dt, unique_visitor_cookie_id, visit_id, event_position
-LIMIT 200;
+INSERT INTO vb_tv_content_nav_all
+SELECT dt,
+       unique_visitor_cookie_id,
+       visit_id,
+       event_position,
+       container,
+       attribute,
+       placement,
+       CAST(NULL AS varchar) AS current_ep_id,
+       result              AS click_result
+FROM vb_tv_content_clicks;
 
-SELECT *
-FROM vb_tv_content_nav_all
-WHERE attribute LIKE 'search-result-episode~click'
-LIMIT 5;
+INSERT INTO vb_tv_content_nav_all
+SELECT dt,
+       unique_visitor_cookie_id,
+       visit_id,
+       event_position,
+       container,
+       attribute,
+       placement,
+       current_ep_id,
+       next_ep_id AS click_result
+FROM vb_tv_autoplay_clicks ;
 
--- Add in Master brand,
+-- Check example results
+--SELECT * FROM vb_tv_content_nav_all ORDER BY dt, unique_visitor_cookie_id, visit_id, event_position LIMIT 200;
+
+
+------ Add in Master brand -----
 -- For channels pages this has to be got from the placement field as the content ID is not being sent.
 -- For category pages (apart from children) this is not possible.
 -- For search this is not possible
-DROP TABLE IF EXISTS vb_tv_content_nav_all_cat_channel;
-CREATE TABLE vb_tv_content_nav_all_cat_channel AS
+CREATE TABLE vb_tv_content_nav_all_temp
+AS SELECT * FROM vb_tv_content_nav_all;
+
+DROP TABLE IF EXISTS vb_tv_content_nav_all;
+CREATE TABLE vb_tv_content_nav_all AS
 SELECT a.*,
        b.master_brand_id
-FROM vb_tv_content_nav_all a
+FROM vb_tv_content_nav_all_temp a
          LEFT JOIN vb_vmb_temp b ON CASE
-                                        WHEN a.current_ep_id ISNULL THEN a.click_result
-                                        WHEN a.current_ep_id IS NOT NULL THEN a.current_ep_id END = b.episode_id
+                                        WHEN a.current_ep_id ISNULL THEN a.click_result --this joins the master brand of the content click (not nav click)
+                                        WHEN a.current_ep_id IS NOT NULL THEN a.current_ep_id END -- this joins the master brand for the nav clicks
+                                        = b.episode_id
 ORDER BY a.dt, a.unique_visitor_cookie_id, a.visit_id, a.event_position;
 
-UPDATE vb_tv_content_nav_all_cat_channel
+-- Get master brand for children's category page names
+UPDATE vb_tv_content_nav_all
 SET master_brand_id = SUBSTRING(placement, 23, len(placement) - 27)
 WHERE placement ILIKE '%categories%'
   AND (placement ILIKE '%cbeebies%' OR placement ILIKE '%cbbc%');
 
-UPDATE vb_tv_content_nav_all_cat_channel
+-- For channels pages get master brand
+UPDATE vb_tv_content_nav_all
 SET master_brand_id = SUBSTRING(placement, CHARINDEX('channels.', placement) + 9,
                                 len(placement) - CHARINDEX('channels.', placement) - 13)
 WHERE placement ILIKE '%channel%';
 
-CREATE TABLE vb_tv_content_nav_all_cat_channel_temp
-AS SELECT * FROM vb_tv_content_nav_all_cat_channel;
-DROP TABLE vb_tv_content_nav_all_cat_channel;
+-- Create temp version of the table so more things can be added in
+DROP TABLE IF EXISTS vb_tv_content_nav_all_temp;
+CREATE TABLE vb_tv_content_nav_all_temp
+AS SELECT * FROM vb_tv_content_nav_all;
 
-CREATE TABLE vb_tv_content_nav_all_cat_channel AS
+-- Add in row count
+DROP TABLE vb_tv_content_nav_all;
+CREATE TABLE vb_tv_content_nav_all AS
     SELECT *, row_number() over (PARTITION BY dt,unique_visitor_cookie_id,visit_id ORDER BY event_position) AS row_count
-FROM vb_tv_content_nav_all_cat_channel_temp;
+FROM vb_tv_content_nav_all_temp;
 
-DROP TABLE vb_tv_content_nav_all_cat_channel_temp;
+DROP TABLE vb_tv_content_nav_all_temp;
 
-SELECT *
-FROM vb_tv_content_nav_all_cat_channel
-ORDER BY dt, unique_visitor_cookie_id, visit_id, event_position
-LIMIT 200;
+-- Simplify names of placements to make it easier to group origins
+UPDATE vb_tv_content_nav_all
+SET placement = (
+    CASE
+        WHEN placement ILIKE '%channel%' THEN 'channel_page'
+        WHEN placement ILIKE '%categories%' AND (placement ILIKE '%cbeebies%' OR placement ILIKE '%cbbc%')
+            THEN 'categories_page_kids'
+        WHEN placement ILIKE '%categories%' AND placement NOT ILIKE '%cbeebies%' AND placement NOT ILIKE '%cbbc%'
+            THEN 'categories_page_not_kids'
+        WHEN placement ILIKE 'iplayer.tv.page' THEN 'homepage'
+        WHEN placement ILIKE '%tleo%' THEN 'tleo_page'
+        WHEN placement ILIKE '%episode%' THEN 'episode_page'
+        ELSE 'other_page' END);
+
+-- Remove any master brands with nations in the name e.g bbc_one_england
+UPDATE vb_tv_content_nav_all
+SET master_brand_id = (
+    CASE WHEN master_brand_id ILIKE 'bbc_one%' THEN 'bbc_one'
+    WHEN master_brand_id ILIKE 'bbc_two%' THEN 'bbc_two'
+    ELSE master_brand_id END
+    );
+
+
+
+--SELECT * FROM vb_tv_content_nav_all ORDER BY dt, unique_visitor_cookie_id, visit_id, event_position LIMIT 200;
 
 -- Select only things that come directly before a tv nav click
+DROP TABLE IF EXISTS vb_tv_nav_click_and_preceding_content_click;
 CREATE TABLE vb_tv_nav_click_and_preceding_content_click AS
-SELECT * FROM vb_tv_content_nav_all_cat_channel
-    WHERE attribute LIKE '%page-section-related~select%' OR attribute LIKE '%page-section-rec~select%';
-
---INSERT INTO vb_tv_nav_click_and_preceding_content_click
 SELECT a.dt,
        a.unique_visitor_cookie_id,
        a.visit_id,
-       a.event_position AS content_event_position,
-       a.attribute AS content_attribute,
-       a.placement As content_placement,
-       a.click_result AS content_click_result,
+       a.container       AS content_click_container,
+       a.placement       As content_click_placement,
+       a.event_position  AS content_click_event_position,
+       b.event_position  AS nav_click_event_position,
+       a.attribute       AS content_click_attribute,
+       b.attribute       AS nav_click_attribute,
+       a.click_result    AS content_click_result,
+       b.current_ep_id   AS nav_click_current_ep,
        a.master_brand_id AS content_click_master_brand,
-       a.row_count AS content_click_row_count,
-       b.event_position AS nav_click_event_position,
-       b.attribute AS nav_click_attribute,
-       b.current_ep_id AS nav_click_current_ep,
        b.master_brand_id AS nav_click_conent_master_brand,
-       b.row_count AS nav_click_row_count
-FROM vb_tv_content_nav_all_cat_channel a
-         INNER JOIN vb_tv_content_nav_all_cat_channel b
+       a.row_count       AS content_click_row_count,
+       b.row_count       AS nav_click_row_count,
+       CASE
+           WHEN a.click_result != 'unknown' AND a.click_result = b.current_ep_id THEN 'ep_id_check'
+           WHEN a.click_result = 'unknown' AND a.master_brand_id IS NOT NULL AND a.master_brand_id = b.master_brand_id
+               THEN 'master_brand_check'
+           ELSE 'only_position_check'
+           END           AS check_type -- name what type of check the content click to nav click had
+FROM vb_tv_content_nav_all a
+         INNER JOIN vb_tv_content_nav_all b
                     ON a.dt = b.dt AND a.unique_visitor_cookie_id = b.unique_visitor_cookie_id AND
                        a.visit_id = b.visit_id
-WHERE (b.attribute LIKE '%page-section-related~select%'
+WHERE (b.attribute LIKE '%page-section-related~select%' -- select all the nav events
     OR b.attribute LIKE '%page-section-rec~select%')
-  AND a.row_count = (b.row_count - 1)
-  AND a.visit_id = '4870084'
-LIMIT 10;
--- when a.result is not blank, check content-click result = nav select current id
--- add label - checking = ID
--- if it is blank check if master brands are the same - add label checking = master_brand
--- if its not got a master brand - add label checking = none
+  AND a.row_count = (b.row_count - 1) --select the row above the nave event
+  AND CASE
+          WHEN a.click_result != 'unknown' THEN a.click_result = b.current_ep_id -- check the ep IDs match if possible
+          WHEN a.click_result = 'unknown' AND a.master_brand_id IS NOT NULL
+              THEN a.master_brand_id = b.master_brand_id -- check the master brands match if can't check IDs
+          ELSE a.row_count = (b.row_count - 1) -- if you can't check IDs or master brands, just bring in row above anyway (it's labelled as not checked well)
+    END
+ORDER BY a.dt, a.unique_visitor_cookie_id, a.visit_id, a.event_position
+;
+
+/*SELECT dt,
+       unique_visitor_cookie_id,
+       visit_id,
+       nav_click_event_position,
+       check_type,
+       content_click_placement,
+       content_click_container,
+       content_click_attribute,
+       nav_click_attribute
+FROM vb_tv_nav_click_and_preceding_content_click
+ORDER BY dt, unique_visitor_cookie_id, visit_id, content_click_event_position;*/
+
+SELECT COUNT(*) FROM vb_tv_nav_click_and_preceding_content_click; -- 332,037 for 2020-01-15
+SELECT COUNT(*) FROM vb_tv_nav_select; --381,227 for 2020-01-15
+
+-- What are the records not in the final table but in the select?
+SELECT p.dt,
+       p.unique_visitor_cookie_id,
+       p.visit_id,
+       p.container,
+       p.placement,
+       p.attribute,
+       p.result,
+       p.event_position,
+       p.event_start_datetime
+FROM s3_audience.publisher p
+         JOIN (
+    SELECT a.*
+    FROM vb_tv_nav_select a
+             LEFT JOIN vb_tv_nav_click_and_preceding_content_click b
+                       ON a.dt = b.dt AND a.unique_visitor_cookie_id = b.unique_visitor_cookie_id AND
+                          a.visit_id = b.visit_id AND a.event_position = b.nav_click_event_position
+    WHERE b.dt ISNULL
+      AND b.unique_visitor_cookie_id ISNULL
+      AND b.visit_id ISNULL
+      AND b.nav_click_event_position ISNULL
+    LIMIT 5) q ON p.dt = q.dt AND p.unique_visitor_cookie_id = q.unique_visitor_cookie_id AND p.visit_id = q.visit_id
+WHERE p.destination = 'PS_IPLAYER'
+ORDER BY p.dt, p.unique_visitor_cookie_id, p.visit_id, p.event_position
+;
+
+--switching-page~current-selected
+SELECT * FROM vb_tv_content_nav_all WHERE visit_id = '14149183' ORDER BY dt,unique_visitor_cookie_id,visit_id,event_position;
+SELECT * FROM vb_tv_nav_select WHERE visit_id = '684731' ORDER BY dt,unique_visitor_cookie_id,visit_id,event_position;
 
 
- CASE WHEN LAG(attribute, 1) OVER (PARTITION BY dt,unique_visitor_cookie_id,visit_id ORDER BY event_position) IS NOT NULL
-           AS previous_attribute
-FROM vb_tv_nav_click_and_preceding
+
+SELECT DISTINCT attribute FROM s3_audience.publisher WHERE destination = 'PS_IPLAYER' AND dt> 20200101 AND attribute ILIKE 'switching-page~%';
 /*SELECT CASE
-           WHEN placement ILIKE '%channel%' THEN 'channel'
+           WHEN placement ILIKE '%channel%' THEN 'channel_page'
            WHEN placement ILIKE '%categories%' AND (placement ILIKE '%cbeebies%' OR placement ILIKE '%cbbc%')
-               THEN 'categories (children)'
+               THEN 'categories_page_kids'
            WHEN placement ILIKE '%categories%' AND placement NOT ILIKE '%cbeebies%' AND placement NOT ILIKE '%cbbc%'
-               THEN 'categories (not children)'
+               THEN 'categories_page_not_kids'
            WHEN placement ILIKE 'iplayer.tv.page' THEN 'homepage'
            WHEN placement ILIKE '%tleo%' THEN 'tleo'
            WHEN placement ILIKE 'globalnav.view.page' OR placement ILIKE 'iplayer.tv.group.page' OR
@@ -269,152 +314,3 @@ GROUP BY 1;
 */
 
 
--- Create a table joining the click to the content and the nav click whilst on that content.
--- Make sure that the content click came before the nav click
-DROP TABLE IF EXISTS vb_tv_content_to_nav_journey_temp;
-CREATE TABLE vb_tv_content_to_nav_journey_temp AS
-SELECT a.dt,
-       a.unique_visitor_cookie_id,
-       a.visit_id,
-       b.event_position                                     AS content_click_event_position,
-       b.container                                          AS content_click_container,
-       b.placement                                          AS content_click_placement,
-       b.result                                             AS content_click_result,
-       a.event_position                                     AS nav_click_event_position,
-       a.attribute                                          AS nav_menu_type,
-       a.current_brand_id,
-       a.current_series_id,
-       a.current_ep_id,
-       CAST(a.event_position - b.event_position AS integer) AS content_nav_position_diff
-FROM vb_tv_nav_select a
-         JOIN vb_tv_content_clicks b
-              ON a.dt = b.dt AND a.unique_visitor_cookie_id = b.unique_visitor_cookie_id AND a.visit_id = b.visit_id
-WHERE b.event_position < a.event_position
-  AND (b.result = a.current_brand_id OR b.result = a.current_series_id OR b.result = a.current_ep_id)
-ORDER BY a.dt, a.unique_visitor_cookie_id, a.visit_id, b.event_position;
-
-
--- Prevent any duplication - this selects which ever valid content-item click was closest to (and before) the start event.
-DROP TABLE IF EXISTS vb_tv_content_to_nav_journey;
-CREATE TABLE vb_tv_content_to_nav_journey AS
-SELECT *
-FROM (
-         SELECT *,
-                row_number()
-                OVER (PARTITION BY dt, unique_visitor_cookie_id, visit_id, content_click_event_position ORDER BY content_nav_position_diff) AS duplicate_identifier_1,
-                row_number()
-                OVER (PARTITION BY dt, unique_visitor_cookie_id, visit_id, nav_click_event_position ORDER BY content_nav_position_diff)     AS duplicate_identifier_2
-         FROM vb_tv_content_to_nav_journey_temp
-         ORDER BY dt, unique_visitor_cookie_id, visit_id, content_click_event_position)
-WHERE duplicate_identifier_1 = 1
-  AND duplicate_identifier_2 = 1;
-
-
---The above only works for homepage and TLEO where the result (contentID) is given. For categories and channels it's not sent.
--- So for those we need to select only the content-click that came most recently before
-DROP TABLE IF EXISTS vb_tv_content_to_nav_journey_chan_cat;
-CREATE TABLE vb_tv_content_to_nav_journey_chan_cat AS
-SELECT a.dt,
-       a.unique_visitor_cookie_id,
-       a.visit_id,
-       b.event_position                                     AS content_click_event_position,
-       b.container                                          AS content_click_container,
-       b.placement                                          AS content_click_placement,
-       b.result                                             AS content_click_result,
-       a.event_position                                     AS nav_click_event_position,
-       a.attribute                                          AS nav_menu_type,
-       a.current_brand_id,
-       a.current_series_id,
-       a.current_ep_id,
-       CAST(a.event_position - b.event_position AS integer) AS content_nav_position_diff
-FROM vb_tv_nav_select a
-         JOIN vb_tv_content_clicks b
-              ON a.dt = b.dt AND a.unique_visitor_cookie_id = b.unique_visitor_cookie_id AND a.visit_id = b.visit_id
-WHERE (b.placement ILIKE '%channels%' OR b.placement ILIKE '%categories%')
-  AND b.event_position < a.event_position
-ORDER BY a.dt, a.unique_visitor_cookie_id, a.visit_id, b.event_position;
-
-SELECT *
-FROM vb_tv_content_to_nav_journey_chan_cat
-LIMIT 1000;
-SELECT *
-FROM s3_audience.publisher
-WHERE dt = 20191101
-  AND visit_id = '11772591'
-  AND destination = 'PS_IPLAYER'
-ORDER BY event_position;
-
-
------ get any nav selects that are not in the normal table (i.e wasn't matched by brand/series/ep)
-DROP TABLE IF EXISTS vb_tv_content_to_nav_journey_chan_cat;
-CREATE TABLE vb_tv_content_to_nav_journey_chan_cat AS
-SELECT a.dt,
-       a.unique_visitor_cookie_id,
-       a.visit_id,
-       a.event_position,
-       a.attribute,
-       a.placement,
-       a.current_ep_id AS result
-FROM vb_tv_nav_select a
-         LEFT JOIN vb_tv_content_to_nav_journey b
-                   ON a.dt = b.dt AND a.unique_visitor_cookie_id = b.unique_visitor_cookie_id AND
-                      a.visit_id = b.visit_id AND a.event_position = nav_click_event_position
-WHERE b.dt IS NULL
-  AND b.unique_visitor_cookie_id ISNULL
-  AND b.visit_id ISNULL
-  AND b.nav_click_event_position ISNULL
-;
-
--- then add in the content-clicks
-INSERT INTO vb_tv_content_to_nav_journey_chan_cat
-SELECT dt, unique_visitor_cookie_id, visit_id, event_position, attribute, placement, result
-FROM vb_tv_content_clicks
-WHERE placement ILIKE '%channels%'
-   OR placement ILIKE '%categories%';
-
-
-SELECT *
-FROM vb_tv_content_to_nav_journey_chan_cat
-ORDER BY dt, unique_visitor_cookie_id, visit_id, event_position
-LIMIT 1000;
-
-
--- Simplify some of the labelling
-UPDATE vb_tv_content_to_nav_journey
-SET content_click_container = (CASE
-                                   WHEN content_click_container ILIKE '%module-if-you-liked%' THEN 'module-if-you-liked'
-                                   ELSE content_click_container END),
-    content_click_placement = (CASE
-                                   WHEN content_click_placement ILIKE '%tleo%' THEN 'TLEO'
-                                   WHEN content_click_placement ILIKE 'iplayer.tv.page' THEN 'Homepage'
-                                   ELSE content_click_placement END);
-
-SELECT content_click_container, content_click_placement, COUNT(*)
-FROM vb_tv_content_to_nav_journey
-GROUP BY content_click_container, content_click_placement;
-
-SELECT DISTINCT CASE
-                    WHEN content_click_container ILIKE '%module-if-you-liked%' THEN 'module-if-you-liked'
-                    ELSE content_click_container END AS content_click_container,
-                CASE
-                    WHEN content_click_placement ILIKE '%tleo%' THEN 'TLEO'
-                    WHEN content_click_placement ILIKE 'iplayer.tv.page' THEN 'Homepage'
-                    ELSE content_click_placement END AS content_click_placement
-
-FROM vb_tv_content_to_nav_journey;
-
-
----------- Figure out how to get the content--id from when the result is missing
-SELECT *
-FROM vb_tv_content_clicks
-WHERE result LIKE 'unknown'
-ORDER BY dt, unique_visitor_cookie_id, visit_id, event_position
-LIMIT 20;
-
-SELECT visit_id, event_position, container, attribute, placement, result
-FROM s3_audience.publisher
-WHERE dt = 20191101
-  AND (visit_id = '11765073' OR visit_id = '118285961' OR visit_id = '16693281' OR visit_id = '463493')
-  AND destination = 'PS_IPLAYER'
-  AND metadata ILIKE '%bigscreen%'
-ORDER BY visit_id, event_position;
