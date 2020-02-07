@@ -188,7 +188,7 @@ DROP TABLE vb_tv_content_nav_all_temp;
 UPDATE vb_tv_content_nav_all
 SET placement = (
     CASE
-        WHEN placement ILIKE '%channel%' THEN 'channel_page'
+        WHEN placement ILIKE '%.channels.%' THEN 'channel_page'
         WHEN placement ILIKE '%categories%' AND (placement ILIKE '%cbeebies%' OR placement ILIKE '%cbbc%')
             THEN 'categories_page_kids'
         WHEN placement ILIKE '%categories%' AND placement NOT ILIKE '%cbeebies%' AND placement NOT ILIKE '%cbbc%'
@@ -196,6 +196,7 @@ SET placement = (
         WHEN placement ILIKE 'iplayer.tv.page' THEN 'homepage'
         WHEN placement ILIKE '%tleo%' THEN 'tleo_page'
         WHEN placement ILIKE '%episode%' THEN 'episode_page'
+        WHEN placement ILIKE '%.search.%' THEN 'search_page'
         ELSE 'other_page' END);
 
 -- Rename any master brands with nations in the name e.g bbc_one_england
@@ -317,6 +318,10 @@ GROUP BY 1;
 
 
 ------------      What % of journey's clicking onto content come from where? ----------
+
+SELECT DISTINCT placement FROM s3_audience.publisher WHERE attribute ILIKE 'search-result-episode~click' AND destination = 'PS_IPLAYER' and dt >20200115 AND metadata ILIKE '%bigscreen%';
+
+DROP TABLE vb_tv_all_content_clicks;
 CREATE TABLE vb_tv_all_content_clicks AS
 SELECT DISTINCT dt,
                 unique_visitor_cookie_id,
@@ -324,7 +329,7 @@ SELECT DISTINCT dt,
                 event_position,
                 container,
                 CASE
-                    WHEN placement ILIKE '%channel%' THEN 'channel_page'
+                    WHEN placement ILIKE '%.channels.%' THEN 'channel_page'
                     WHEN placement ILIKE '%categories%' AND (placement ILIKE '%cbeebies%' OR placement ILIKE '%cbbc%')
                         THEN 'categories_page_kids'
                     WHEN placement ILIKE '%categories%' AND placement NOT ILIKE '%cbeebies%' AND
@@ -333,6 +338,7 @@ SELECT DISTINCT dt,
                     WHEN placement ILIKE 'iplayer.tv.page' THEN 'homepage'
                     WHEN placement ILIKE '%tleo%' THEN 'tleo_page'
                     WHEN placement ILIKE '%episode%' THEN 'episode_page'
+                    WHEN placement ILIKE '%.search.%' THEN 'search_page'
                     ELSE 'other_page' END AS placement,
                 attribute
 FROM s3_audience.publisher
@@ -353,4 +359,23 @@ WHERE (attribute LIKE '%page-section-related~select%' OR
   AND dt <= 20200129
 ORDER BY dt, unique_visitor_cookie_id, visit_id, event_position;
 
-SELECT placement, count(*) AS num_content_clicks FROM vb_tv_all_content_clicks GROUP BY placement;
+UPDATE vb_tv_all_content_clicks
+SET container = (CASE WHEN container ILIKE 'module-if-you-liked%' THEN 'module-if-you-liked'
+    ELSE container END);
+
+ALTER TABLE vb_tv_all_content_clicks
+ADD simple_container_name varchar;
+
+UPDATE vb_tv_all_content_clicks
+SET simple_container_name = (
+    CASE WHEN placement = 'tleo_page' AND container ILIKE '%contextual-cta%' THEN 'featured_episode'
+    WHEN placement = 'tleo_page' AND container ILIKE 'onward-journey-autoplay-next-episode' THEN 'onward-journey-autoplay-next-episode'
+    WHEN placement = 'tleo_page' AND container ILIKE 'live-now' THEN 'live-now'
+    WHEN placement = 'tleo_page' AND container ILIKE 'page' THEN 'page'
+    ELSE (CASE WHEN placement = 'tleo_page' THEN 'series_selected' ELSE 'placement' END) END
+    );
+
+SELECT placement,container, attribute, count(*) AS num_content_clicks FROM vb_tv_all_content_clicks GROUP BY placement,container, attribute;
+SELECT placement,simple_container_name, attribute, count(*) AS num_content_clicks FROM vb_tv_all_content_clicks GROUP BY placement,simple_container_name, attribute;
+
+SELECT DISTINCT placement,container FROM vb_tv_all_content_clicks;
