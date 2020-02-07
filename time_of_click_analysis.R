@@ -3,7 +3,7 @@ library(ggridges)
 library(dplyr)
 library(ggrepel)
 
-clickTime<- read.csv("time_to_click.csv", header = TRUE)
+clickTime<- read.csv("time_to_click_Jan2020.csv", header = TRUE)
 clickTime <- clickTime %>% rename(clickTime_sec = time_since_content_start_sec)
 clickTime <- clickTime %>% rename(menuType = menu_type)
 clickTime<- na.omit(clickTime)
@@ -43,11 +43,11 @@ ggplot(data = clickTimeGroups, aes(x=timeRange_sec, y=numInRange))+
     ylab("Number of Visits with Click in Time Range (millions)")+
     xlab("Time Range (mins)")+
     geom_hline(yintercept = 250000)+
-    geom_label(data=subset(clickTimeMinutes, perc > 6),
+    geom_label(data=subset(clickTimeMinutes, perc > 7),
               aes(label=paste0(sprintf("%1.0f", perc),"%"),),
               position = position_stack(vjust = 0.5),
               colour="black")+
-    geom_label(data=subset(clickTimeMinutes, perc >= 5 & perc < 6),
+    geom_label(data=subset(clickTimeMinutes, perc >= 6 & perc < 7),
                aes(label=paste0(sprintf("%1.0f", perc),"%"),),
                position = position_stack(vjust = 1.6),
                colour="black")+
@@ -78,13 +78,8 @@ ggplot(data = clickTimeGroups, aes(x=timeRange_sec, y=numInRange))+
                fill = "white")+
     geom_label(data=subset(clickTimeMinsMenu, perc >= 5 & perc < 9),
                aes(label=paste0(sprintf("%1.0f", perc),"%"),),
-               position = position_stack(vjust = 1.6),
-               colour="black", 
-               fill = "white")+
-    geom_label(data=subset(clickTimeMinsMenu, perc >= 9 & perc < 10),
-               aes(label=paste0(sprintf("%1.0f", perc),"%"),),
-               position = position_stack(vjust = 1.3),
-               colour="black", 
+               position = position_stack(vjust = 1.5),
+               colour="black",
                fill = "white")+
     ggtitle("Number of Clicks to the Onward Journey Panel 'x' Minutes After Content Start \n PS_IPLAYER - Big Screen - 2019-11-01 to 2019-11-14" )+
     theme_classic() +

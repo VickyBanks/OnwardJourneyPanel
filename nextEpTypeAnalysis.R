@@ -16,7 +16,7 @@ theme_update(plot.caption = element_text(size=6)) # updates the theme so that ca
 
 
 
-nextEpInfo<- read.csv("next_ep_type.csv", header = TRUE)
+nextEpInfo<- read.csv("next_ep_type_Jan2020.csv", header = TRUE)
 nextEpInfo <- nextEpInfo %>% rename(clickTime_sec = time_since_content_start_sec)
 nextEpInfo <- nextEpInfo %>% rename(menuType = menu_type)
 nextEpInfo <- nextEpInfo %>% rename(uv = unique_visitor_cookie_id)
@@ -69,23 +69,23 @@ path48 <- nextEpInfo %>% filter(same_brand == 1 & same_brand_series == 0 & next_
 nodes = data.frame("name" = factor(c("All Clicks",
                                      "Diff Brand - 9%",
                                      "Same Brand - 91%",
-                                     "Same Series - 80%",
-                                     "Diff Series - 12%",
-                                     "Next Ep - 29%",
+                                     "Same Series - 74%",
+                                     "Diff Series - 16%",
+                                     "Next Ep - 23%",
                                      "Other Ep - 51%",
-                                     "Next Ep - 0.2%",
-                                     "Other Ep - 11%")),
+                                     "Next Ep - 0.3%",
+                                     "Other Ep - 16%")),
                    "group" = as.character(c(1, 2, 2, 3, 3, 4, 4, 5, 5)))
 nodes
 links <- as.data.frame(matrix(byrow = T, ncol = 3, 
-                              c(0, 1, 719071,
-                                0, 2, 7320318,
-                                2, 3, 6393271,
-                                2, 4, 927047,
-                                3, 5, 2324600,
-                                3, 6, 4068671,
-                                4, 7, 16959,
-                                4, 8, 911088)))
+                              c(0, 1, 619855,
+                                0, 2, 5920193,
+                                2, 3, 4841409,
+                                2, 4, 1078784,
+                                3, 5, 1509540,
+                                3, 6, 3331869,
+                                4, 7, 22430,
+                                4, 8, 1056354)))
 names(links) <- c("source","target","value")
 links
 
