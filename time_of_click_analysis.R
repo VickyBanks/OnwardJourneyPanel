@@ -89,7 +89,7 @@ ggplot(data = clickTimeGroups, aes(x=timeRange_sec, y=numInRange))+
 
   
 ## Look at data depending on where their click took them
-nextEpInfo<- read.csv("next_ep_type.csv", header = TRUE)
+nextEpInfo<- read.csv("next_ep_type_Jan2020.csv", header = TRUE)
 nextEpInfo <- nextEpInfo %>% rename(clickTime_sec = time_since_content_start_sec)
 nextEpInfo <- nextEpInfo %>% rename(menuType = menu_type)
 nextEpInfo <- nextEpInfo %>% rename(uv = unique_visitor_cookie_id)
