@@ -98,6 +98,29 @@ WHERE (p.attribute LIKE '%squeeze-auto-play%' OR p.attribute LIKE '%squeeze-play
 ORDER BY dt, unique_visitor_cookie_id, visit_id, event_position;
 
 
+-- Identify deep links to content and the content they're going too.
+-- When the URL contains "playback" the ep_id can be found, but if not it's very difficult/impossible.
+
+CREATE TABLE vb_tv_deeplinks AS
+SELECT dt, unique_visitor_cookie_id, visit_id, event_position,
+       CASE
+           WHEN SUBSTRING(REVERSE(playback_str), 10, 8) SIMILAR TO '%[0-9]%' THEN SUBSTRING(REVERSE(playback_str), 10, 8)
+           ELSE NULL END AS click_result
+FROM (SELECT DISTINCT a.dt, a.unique_visitor_cookie_id, a.visit_id, a.event_position,
+                      CASE
+                          WHEN a.url ILIKE '%/playback%' THEN REGEXP_SUBSTR(REVERSE(a.url), '[^.]*/kcabyalp') -- Need the final instance of the phrase'/playback' to get the episode ID so reverse url so that it's now first.
+                          ELSE NULL END AS playback_str
+      FROM s3_audience.events a
+JOIN s3_audience.publisher p ON p.dt = a.dt AND p.unique_visitor_cookie_id = a.unique_visitor_cookie_id AND
+                 a.visit_id = p.visit_id
+      WHERE a.destination = 'PS_IPLAYER'
+        AND a.app_type LIKE 'bigscreen%'
+        AND a.url LIKE '%deeplink%'
+        AND (a.dt BETWEEN 20200115 AND 20200129)
+        AND a.url IS NOT NULL);
+
+SELECT * FROM vb_tv_deeplinks LIMIT 15;
+
 -- create a table with all the nav clicks and select clicks
 DROP TABLE IF EXISTS vb_tv_content_nav_all;
 CREATE TABLE vb_tv_content_nav_all
@@ -125,6 +148,7 @@ SELECT dt,
        result              AS click_result
 FROM vb_tv_content_clicks;
 
+
 INSERT INTO vb_tv_content_nav_all
 SELECT dt,
        unique_visitor_cookie_id,
@@ -137,9 +161,21 @@ SELECT dt,
        next_ep_id AS click_result
 FROM vb_tv_autoplay_clicks ;
 
--- Check example results
---SELECT * FROM vb_tv_content_nav_all ORDER BY dt, unique_visitor_cookie_id, visit_id, event_position LIMIT 200;
+INSERT INTO vb_tv_content_nav_all
+SELECT dt,
+       unique_visitor_cookie_id,
+       visit_id,
+       event_position,
+       CAST('deeplink' AS varchar) AS container,
+       CAST('deeplink' AS varchar) AS attribute,
+       CAST('deeplink' AS varchar) AS placement,
+       CAST(NULL AS varchar)       AS current_ep_id,
+       click_result
+FROM vb_tv_deeplinks;
 
+-- Check example results
+SELECT * FROM vb_tv_content_nav_all ORDER BY dt, unique_visitor_cookie_id, visit_id, event_position LIMIT 200;
+--visit_id = 13900801 on dt = 20200115
 
 ------ Add in Master brand -----
 -- For channels pages this has to be got from the placement field as the content ID is not being sent.
@@ -197,6 +233,7 @@ SET placement = (
         WHEN placement ILIKE '%tleo%' THEN 'tleo_page'
         WHEN placement ILIKE '%episode%' THEN 'episode_page'
         WHEN placement ILIKE '%.search.%' THEN 'search_page'
+        WHEN placement ILIKE 'deeplink' THEN 'deeplink'
         ELSE 'other_page' END);
 
 -- Rename any master brands with nations in the name e.g bbc_one_england
@@ -208,8 +245,8 @@ SET master_brand_id = (
     );
 
 
-
---SELECT * FROM vb_tv_content_nav_all ORDER BY dt, unique_visitor_cookie_id, visit_id, event_position LIMIT 200;
+SELECT * FROM vb_tv_content_nav_all WHERE placement = 'deeplink' LIMIT 10;
+SELECT * FROM vb_tv_content_nav_all ORDER BY dt, unique_visitor_cookie_id, visit_id, event_position LIMIT 200;
 
 -- Select only things that come directly before a tv nav click
 DROP TABLE IF EXISTS vb_tv_nav_click_and_preceding_content_click;
@@ -319,7 +356,8 @@ GROUP BY 1;
 
 ------------      What % of journey's clicking onto content come from where? ----------
 
-SELECT DISTINCT placement FROM s3_audience.publisher WHERE attribute ILIKE 'search-result-episode~click' AND destination = 'PS_IPLAYER' and dt >20200115 AND metadata ILIKE '%bigscreen%';
+SELECT * FROM s3_audience.publisher WHERE destination = 'PS_IPLAYER' and dt >20200115 AND metadata ILIKE '%bigscreen%' LIMIT 10;
+
 
 DROP TABLE vb_tv_all_content_clicks;
 CREATE TABLE vb_tv_all_content_clicks AS
