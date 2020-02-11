@@ -1,16 +1,7 @@
 ----------- For the user clicking the menu, how did they get to viewing that content? -----
-/* table vb_tv_nav_new_content_flag has all their clicks/ impressions and flag to identify new content starting
-   use featured home script to identify how they got to that content.
-   -> keep in what rail it was from if one home
-   -> need to also include things from categories pages and channels
 
 
-   1. Select all visits
-   2. Select the click to the menu
-   3. Join to a content item click that came before - make sure same brand/series/episode ID
-   4. Prevent duplication by joining only with click that came directly before.
-   5. Count number of clicks where content came from each prior location
-   6. Join into where the click took them.*/
+------------    CREATE a subset of the VMB to use to link content -------------
 DROP TABLE IF EXISTS vb_vmb_temp;
 CREATE TABLE vb_vmb_temp AS
 SELECT DISTINCT master_brand_name,
@@ -25,7 +16,8 @@ SELECT DISTINCT master_brand_name,
 FROM prez.scv_vmb;
 
 
--- Select visits and UV on TV where the onward nav was clicked
+-------------  Select the visits where the onward journey nav was clicked -------------
+
 DROP TABLE IF EXISTS vb_tv_nav_select;
 CREATE TABLE vb_tv_nav_select AS
 SELECT DISTINCT dt,
@@ -45,15 +37,13 @@ FROM s3_audience.publisher
 WHERE (attribute LIKE '%page-section-related~select%' OR attribute LIKE '%page-section-rec~select%')
   AND metadata LIKE '%iplayer::bigscreen-html%'
   AND destination = 'PS_IPLAYER'
-  AND dt >= 20200115
-  AND dt <= 20200129
+  AND (dt between 20200115 AND 20200129)
 ORDER BY unique_visitor_cookie_id, visit_id, event_position;
 
 
+------------- Select all the different type of content clicks for each visit where the onward journey nav was clicked -------------
 
--- Select all the rows with a content-item click (for those visits where the content nav was clicked)
--- this is content item clicks, start/resume/next ep clicks
--- clicks from search either go direct to an episode or a TLEO page.
+-- Clicks can come direct from the homepage, or search, or a channel or category page, or they can come via the TLEO page.
 DROP TABLE IF EXISTS vb_tv_content_clicks;
 CREATE TABLE vb_tv_content_clicks AS
 SELECT DISTINCT p.dt,
@@ -74,7 +64,7 @@ WHERE (p.attribute LIKE 'content-item%' OR p.attribute LIKE 'start-watching%' OR
 ORDER BY dt, unique_visitor_cookie_id, visit_id, event_position;
 
 
--- Autoplay clicks but only for those who used the nav menu
+-- Clicks can come from the autoplay system starting an episode
 DROP TABLE IF EXISTS vb_tv_autoplay_clicks;
 CREATE TABLE vb_tv_autoplay_clicks AS
 SELECT DISTINCT p.dt,
@@ -98,30 +88,29 @@ WHERE (p.attribute LIKE '%squeeze-auto-play%' OR p.attribute LIKE '%squeeze-play
 ORDER BY dt, unique_visitor_cookie_id, visit_id, event_position;
 
 
--- Identify deep links to content and the content they're going too.
--- When the URL contains "playback" the ep_id can be found, but if not it's very difficult/impossible.
-
+-- Deep links into content from off platform. This needs to regex to identify the content pid the link took users too. Not all pids can be identified and not all links go direct to content.
+DROP TABLE IF EXISTS vb_tv_deeplinks;
 CREATE TABLE vb_tv_deeplinks AS
-SELECT dt, unique_visitor_cookie_id, visit_id, event_position,
-       CASE
-           WHEN SUBSTRING(REVERSE(playback_str), 10, 8) SIMILAR TO '%[0-9]%' THEN SUBSTRING(REVERSE(playback_str), 10, 8)
-           ELSE NULL END AS click_result
-FROM (SELECT DISTINCT a.dt, a.unique_visitor_cookie_id, a.visit_id, a.event_position,
-                      CASE
-                          WHEN a.url ILIKE '%/playback%' THEN REGEXP_SUBSTR(REVERSE(a.url), '[^.]*/kcabyalp') -- Need the final instance of the phrase'/playback' to get the episode ID so reverse url so that it's now first.
-                          ELSE NULL END AS playback_str
-      FROM s3_audience.events a
-JOIN s3_audience.publisher p ON p.dt = a.dt AND p.unique_visitor_cookie_id = a.unique_visitor_cookie_id AND
-                 a.visit_id = p.visit_id
-      WHERE a.destination = 'PS_IPLAYER'
-        AND a.app_type LIKE 'bigscreen%'
-        AND a.url LIKE '%deeplink%'
-        AND (a.dt BETWEEN 20200115 AND 20200129)
-        AND a.url IS NOT NULL);
+SELECT DISTINCT a.dt,
+                a.unique_visitor_cookie_id,
+                a.visit_id,
+                a.event_position,
+                a.url,
+                CASE
+                    WHEN a.url ILIKE '%/playback%' THEN SUBSTRING(REVERSE(regexp_substr(REVERSE(a.url),'[[:alnum:]]{6}[0-9]{1}[pbwnmlc]{1}/')), 2,8) -- Need the final instance of the phrase'/playback' to get the episode ID so reverse url so that it's now first.
+                    ELSE 'unknown' END AS click_result
+FROM s3_audience.events a
+         JOIN vb_tv_nav_select p ON p.dt = a.dt AND p.unique_visitor_cookie_id = a.unique_visitor_cookie_id AND
+                                         a.visit_id = p.visit_id
+WHERE a.destination = 'PS_IPLAYER'
+  AND a.app_type LIKE 'bigscreen%'
+  AND a.url LIKE '%deeplink%'
+  AND (a.dt BETWEEN 20200115 AND 20200129)
+  AND a.url IS NOT NULL;
 
-SELECT * FROM vb_tv_deeplinks LIMIT 15;
 
--- create a table with all the nav clicks and select clicks
+
+ ------------- Join all the different types of click to content and clicks on the onward journey nav into one table -------------
 DROP TABLE IF EXISTS vb_tv_content_nav_all;
 CREATE TABLE vb_tv_content_nav_all
 AS
@@ -173,9 +162,7 @@ SELECT dt,
        click_result
 FROM vb_tv_deeplinks;
 
--- Check example results
-SELECT * FROM vb_tv_content_nav_all ORDER BY dt, unique_visitor_cookie_id, visit_id, event_position LIMIT 200;
---visit_id = 13900801 on dt = 20200115
+
 
 ------ Add in Master brand -----
 -- For channels pages this has to be got from the placement field as the content ID is not being sent.
@@ -213,7 +200,7 @@ CREATE TABLE vb_tv_content_nav_all_temp
 AS SELECT * FROM vb_tv_content_nav_all;
 
 -- Add in row count
-DROP TABLE vb_tv_content_nav_all;
+DROP TABLE IF EXISTS vb_tv_content_nav_all;
 CREATE TABLE vb_tv_content_nav_all AS
     SELECT *, row_number() over (PARTITION BY dt,unique_visitor_cookie_id,visit_id ORDER BY event_position) AS row_count
 FROM vb_tv_content_nav_all_temp;
@@ -244,11 +231,13 @@ SET master_brand_id = (
     ELSE master_brand_id END
     );
 
+SELECT event_position, url FROM vb_tv_deeplinks WHERE dt = 20200115 AND visit_id =6835663 ORDER BY event_position;
 
-SELECT * FROM vb_tv_content_nav_all WHERE placement = 'deeplink' LIMIT 10;
-SELECT * FROM vb_tv_content_nav_all ORDER BY dt, unique_visitor_cookie_id, visit_id, event_position LIMIT 200;
+SELECT * FROM s3_audience.publisher WHERE dt = 20200115 AND visit_id =15747961 AND destination = 'PS_IPLAYER' ORDER by unique_visitor_cookie_id, visit_id, event_position;
 
--- Select only things that come directly before a tv nav click
+
+
+------------- Identify clicks to content that lead directly to an onward journey nav click -------------
 DROP TABLE IF EXISTS vb_tv_nav_click_and_preceding_content_click;
 CREATE TABLE vb_tv_nav_click_and_preceding_content_click AS
 SELECT a.dt,
@@ -288,23 +277,12 @@ WHERE (b.attribute LIKE '%page-section-related~select%' -- select all the nav ev
 ORDER BY a.dt, a.unique_visitor_cookie_id, a.visit_id, a.event_position
 ;
 
-SELECT dt,
-       unique_visitor_cookie_id,
-       visit_id,
-       nav_click_event_position,
-       check_type,
-       content_click_placement,
-       content_click_container,
-       content_click_attribute,
-       nav_click_attribute
-FROM vb_tv_nav_click_and_preceding_content_click
-ORDER BY dt, unique_visitor_cookie_id, visit_id, content_click_event_position;
-
-SELECT COUNT(*) FROM vb_tv_nav_click_and_preceding_content_click; -- 332,037 for 2020-01-15
-SELECT COUNT(*) FROM vb_tv_nav_select; --381,227 for 2020-01-15
+-- How many onward nav clicks do no have a click to content identified? ~ 3% so very small.
+SELECT COUNT(*) FROM vb_tv_nav_click_and_preceding_content_click; -- 6,165,847 for the two weeks
+SELECT COUNT(*) FROM vb_tv_nav_select; --6,338,956
 
 -- What % had what level of checks?
-SELECT content_click_placement, check_type, COUNT(*) FROM vb_tv_nav_click_and_preceding_content_click GROUP BY content_click_placement, check_type;
+SELECT content_click_placement,  COUNT(*) FROM vb_tv_nav_click_and_preceding_content_click GROUP BY content_click_placement;
 
 
 -- What are the records not in the final table but in the select?
@@ -356,7 +334,7 @@ GROUP BY 1;
 
 ------------      What % of journey's clicking onto content come from where? ----------
 
-SELECT * FROM s3_audience.publisher WHERE destination = 'PS_IPLAYER' and dt >20200115 AND metadata ILIKE '%bigscreen%' LIMIT 10;
+
 
 
 DROP TABLE vb_tv_all_content_clicks;
@@ -393,8 +371,8 @@ WHERE (attribute LIKE '%page-section-related~select%' OR
        attribute LIKE '%end-auto-play%')
   AND metadata LIKE '%iplayer::bigscreen-html%'
   AND destination = 'PS_IPLAYER'
-  AND dt >= 20200115
-  AND dt <= 20200129
+  AND (dt BETWEEN 20200115
+  AND 20200129)
 ORDER BY dt, unique_visitor_cookie_id, visit_id, event_position;
 
 UPDATE vb_tv_all_content_clicks
