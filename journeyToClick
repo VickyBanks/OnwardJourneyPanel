@@ -465,7 +465,7 @@ FROM vb_tv_all_content_clicks
 GROUP BY placement, simple_container_name, attribute
 ORDER BY placement, simple_container_name, attribute;
 
-SELECT DISTINCT placement, container
+SELECT *
 FROM vb_tv_all_content_clicks;
 
 
