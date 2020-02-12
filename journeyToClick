@@ -32,7 +32,7 @@ SELECT DISTINCT dt,
                     WHEN left(right(placement, 13), 8) SIMILAR TO '%[0-9]%'
                         THEN left(right(placement, 13), 8) -- if this contains a number then its an ep id, if not make blank
                     ELSE 'none' END AS current_ep_id,
-                result            AS next_ep_id
+                result              AS next_ep_id
 FROM s3_audience.publisher
 WHERE (attribute LIKE '%page-section-related~select%' OR attribute LIKE '%page-section-rec~select%')
   AND metadata LIKE '%iplayer::bigscreen-html%'
@@ -83,34 +83,47 @@ FROM s3_audience.publisher p
          JOIN vb_tv_nav_select vb
               ON p.dt = vb.dt AND p.unique_visitor_cookie_id = vb.unique_visitor_cookie_id AND
                  vb.visit_id = p.visit_id
-WHERE (p.attribute LIKE '%squeeze-auto-play%' OR p.attribute LIKE '%squeeze-play%' OR p.attribute LIKE '%end-play%' OR p.attribute LIKE '%end-auto-play%')
+WHERE (p.attribute LIKE '%squeeze-auto-play%' OR p.attribute LIKE '%squeeze-play%' OR p.attribute LIKE '%end-play%' OR
+       p.attribute LIKE '%end-auto-play%')
   AND p.publisher_clicks = 1
 ORDER BY dt, unique_visitor_cookie_id, visit_id, event_position;
 
 
 -- Deep links into content from off platform. This needs to regex to identify the content pid the link took users too. Not all pids can be identified and not all links go direct to content.
-DROP TABLE IF EXISTS vb_tv_deeplinks;
-CREATE TABLE vb_tv_deeplinks AS
+DROP TABLE IF EXISTS vb_tv_deeplinks_temp;
+CREATE TABLE vb_tv_deeplinks_temp AS
 SELECT DISTINCT a.dt,
                 a.unique_visitor_cookie_id,
                 a.visit_id,
                 a.event_position,
                 a.url,
                 CASE
-                    WHEN a.url ILIKE '%/playback%' THEN SUBSTRING(REVERSE(regexp_substr(REVERSE(a.url),'[[:alnum:]]{6}[0-9]{1}[pbwnmlc]{1}/')), 2,8) -- Need the final instance of the phrase'/playback' to get the episode ID so reverse url so that it's now first.
-                    ELSE 'unknown' END AS click_result
+                    WHEN a.url ILIKE '%/playback%' THEN SUBSTRING(
+                            REVERSE(regexp_substr(REVERSE(a.url), '[[:alnum:]]{6}[0-9]{1}[pbwnmlc]{1}/')), 2,
+                            8) -- Need the final instance of the phrase'/playback' to get the episode ID so reverse url so that it's now first.
+                    ELSE 'unknown' END                                                                                AS click_result,
+                row_number()
+                over (PARTITION BY a.dt,a.unique_visitor_cookie_id,a.visit_id ORDER BY a.event_position)              AS row_count
 FROM s3_audience.events a
          JOIN vb_tv_nav_select p ON p.dt = a.dt AND p.unique_visitor_cookie_id = a.unique_visitor_cookie_id AND
-                                         a.visit_id = p.visit_id
+                                    a.visit_id = p.visit_id
 WHERE a.destination = 'PS_IPLAYER'
   AND a.app_type LIKE 'bigscreen%'
   AND a.url LIKE '%deeplink%'
   AND (a.dt BETWEEN 20200115 AND 20200129)
-  AND a.url IS NOT NULL;
+  AND a.url IS NOT NULL
+ORDER BY dt, unique_visitor_cookie_id, visit_id, event_position;
 
+DROP TABLE IF EXISTS vb_tv_deeplinks;
+CREATE TABLE vb_tv_deeplinks AS
+SELECT *
+FROM vb_tv_deeplinks_temp
+WHERE row_count = 1;
 
-
- ------------- Join all the different types of click to content and clicks on the onward journey nav into one table -------------
+SELECT *
+FROM vb_tv_deeplink
+LIMIT 500;
+------------- Join all the different types of click to content and clicks on the onward journey nav into one table -------------
 DROP TABLE IF EXISTS vb_tv_content_nav_all;
 CREATE TABLE vb_tv_content_nav_all
 AS
@@ -134,7 +147,7 @@ SELECT dt,
        attribute,
        placement,
        CAST(NULL AS varchar) AS current_ep_id,
-       result              AS click_result
+       result                AS click_result
 FROM vb_tv_content_clicks;
 
 
@@ -148,7 +161,7 @@ SELECT dt,
        placement,
        current_ep_id,
        next_ep_id AS click_result
-FROM vb_tv_autoplay_clicks ;
+FROM vb_tv_autoplay_clicks;
 
 INSERT INTO vb_tv_content_nav_all
 SELECT dt,
@@ -169,7 +182,9 @@ FROM vb_tv_deeplinks;
 -- For category pages (apart from children) this is not possible.
 -- For search this is not possible
 CREATE TABLE vb_tv_content_nav_all_temp
-AS SELECT * FROM vb_tv_content_nav_all;
+AS
+SELECT *
+FROM vb_tv_content_nav_all;
 
 DROP TABLE IF EXISTS vb_tv_content_nav_all;
 CREATE TABLE vb_tv_content_nav_all AS
@@ -177,9 +192,11 @@ SELECT a.*,
        b.master_brand_id
 FROM vb_tv_content_nav_all_temp a
          LEFT JOIN vb_vmb_temp b ON CASE
-                                        WHEN a.current_ep_id ISNULL THEN a.click_result --this joins the master brand of the content click (not nav click)
-                                        WHEN a.current_ep_id IS NOT NULL THEN a.current_ep_id END -- this joins the master brand for the nav clicks
-                                        = b.episode_id
+                                        WHEN a.current_ep_id ISNULL
+                                            THEN a.click_result --this joins the master brand of the content click (not nav click)
+                                        WHEN a.current_ep_id IS NOT NULL
+                                            THEN a.current_ep_id END -- this joins the master brand for the nav clicks
+    = b.episode_id
 ORDER BY a.dt, a.unique_visitor_cookie_id, a.visit_id, a.event_position;
 
 -- Get master brand for children's category page names
@@ -197,12 +214,14 @@ WHERE placement ILIKE '%channel%';
 -- Create temp version of the table so more things can be added in
 DROP TABLE IF EXISTS vb_tv_content_nav_all_temp;
 CREATE TABLE vb_tv_content_nav_all_temp
-AS SELECT * FROM vb_tv_content_nav_all;
+AS
+SELECT *
+FROM vb_tv_content_nav_all;
 
 -- Add in row count
 DROP TABLE IF EXISTS vb_tv_content_nav_all;
 CREATE TABLE vb_tv_content_nav_all AS
-    SELECT *, row_number() over (PARTITION BY dt,unique_visitor_cookie_id,visit_id ORDER BY event_position) AS row_count
+SELECT *, row_number() over (PARTITION BY dt,unique_visitor_cookie_id,visit_id ORDER BY event_position) AS row_count
 FROM vb_tv_content_nav_all_temp;
 
 DROP TABLE vb_tv_content_nav_all_temp;
@@ -226,15 +245,15 @@ SET placement = (
 -- Rename any master brands with nations in the name e.g bbc_one_england
 UPDATE vb_tv_content_nav_all
 SET master_brand_id = (
-    CASE WHEN master_brand_id ILIKE 'bbc_one%' THEN 'bbc_one'
-    WHEN master_brand_id ILIKE 'bbc_two%' THEN 'bbc_two'
-    ELSE master_brand_id END
+    CASE
+        WHEN master_brand_id ILIKE 'bbc_one%' THEN 'bbc_one'
+        WHEN master_brand_id ILIKE 'bbc_two%' THEN 'bbc_two'
+        ELSE master_brand_id END
     );
 
-SELECT event_position, url FROM vb_tv_deeplinks WHERE dt = 20200115 AND visit_id =6835663 ORDER BY event_position;
+--SELECT event_position, url FROM vb_tv_deeplinks WHERE dt = 20200115 AND visit_id =6835663 ORDER BY event_position;
 
-SELECT * FROM s3_audience.publisher WHERE dt = 20200115 AND visit_id =15747961 AND destination = 'PS_IPLAYER' ORDER by unique_visitor_cookie_id, visit_id, event_position;
-
+--SELECT * FROM s3_audience.publisher WHERE dt = 20200115 AND visit_id =15747961 AND destination = 'PS_IPLAYER' ORDER by unique_visitor_cookie_id, visit_id, event_position;
 
 
 ------------- Identify clicks to content that lead directly to an onward journey nav click -------------
@@ -277,12 +296,179 @@ WHERE (b.attribute LIKE '%page-section-related~select%' -- select all the nav ev
 ORDER BY a.dt, a.unique_visitor_cookie_id, a.visit_id, a.event_position
 ;
 
--- How many onward nav clicks do no have a click to content identified? ~ 3% so very small.
-SELECT COUNT(*) FROM vb_tv_nav_click_and_preceding_content_click; -- 6,165,847 for the two weeks
-SELECT COUNT(*) FROM vb_tv_nav_select; --6,338,956
+-- Simplify container names
+UPDATE vb_tv_nav_click_and_preceding_content_click
+SET content_click_container = (CASE
+                                   WHEN content_click_container ILIKE 'module-if-you-liked%' THEN 'module-if-you-liked'
+                                   ELSE content_click_container END);
 
--- What % had what level of checks?
-SELECT content_click_placement,  COUNT(*) FROM vb_tv_nav_click_and_preceding_content_click GROUP BY content_click_placement;
+UPDATE vb_tv_nav_click_and_preceding_content_click
+SET content_click_container = (
+    CASE
+        WHEN content_click_placement = 'tleo_page' THEN (
+            CASE
+                WHEN content_click_container ILIKE '%contextual-cta%' THEN 'featured_episode'
+                WHEN content_click_container ILIKE 'onward-journey-autoplay-next-episode'
+                    THEN 'onward-journey-autoplay-next-episode'
+                WHEN content_click_container ILIKE 'live-now' THEN 'live-now'
+                WHEN content_click_container ILIKE 'page' THEN 'page'
+                ELSE 'series_selected' END)
+        WHEN content_click_placement = 'episode_page' THEN (
+            CASE
+                WHEN content_click_container = 'onward-journey-panel-autoplay-next-rec'
+                    THEN 'onward-journey-autoplay-next-rec'
+                WHEN content_click_container = 'onward-journey-panel-autoplay-next-episode'
+                    THEN 'onward-journey-autoplay-next-episode'
+                ELSE content_click_container END)
+        WHEN content_click_placement = 'homepage' THEN content_click_container
+        ELSE content_click_container END);
+
+---------- Overview Numbers -------------------
+-- How many onward nav clicks do no have a click to content identified? ~ 3% so very small.
+SELECT COUNT(*)
+FROM vb_tv_nav_click_and_preceding_content_click; -- 6,136,084 for the two weeks
+SELECT COUNT(*)
+FROM vb_tv_nav_select; --6,338,956
+
+
+SELECT content_click_placement, COUNT(*)
+FROM vb_tv_nav_click_and_preceding_content_click
+GROUP BY content_click_placement;
+SELECT content_click_placement, check_type, COUNT(*)
+FROM vb_tv_nav_click_and_preceding_content_click
+GROUP BY content_click_placement, check_type;
+SELECT check_type, COUNT(*)
+FROM vb_tv_nav_click_and_preceding_content_click
+GROUP BY check_type;
+
+
+------------- Data for Analysis -------------
+SELECT dt,
+       unique_visitor_cookie_id,
+       visit_id,
+       nav_click_event_position,
+       check_type,
+       content_click_placement,
+       content_click_container,
+       content_click_attribute
+FROM vb_tv_nav_click_and_preceding_content_click
+ORDER BY dt, unique_visitor_cookie_id, visit_id, nav_click_event_position;
+
+SELECT DISTINCT content_click_placement, content_click_container, content_click_attribute, count(*)
+FROM vb_tv_nav_click_and_preceding_content_click
+GROUP BY content_click_placement, content_click_container, content_click_attribute
+ORDER BY content_click_placement, content_click_container, content_click_attribute;
+
+
+------------------------------------------------------------------------------------------------------------------------
+
+------------      What % of journey's clicking onto content come from where? ----------
+DROP TABLE IF EXISTS vb_tv_all_clicks_deeplinks;
+CREATE TABLE vb_tv_all_clicks_deeplinks AS
+SELECT *
+FROM (SELECT dt,
+             unique_visitor_cookie_id,
+             visit_id,
+             event_position,
+             row_number() over (PARTITION BY dt,unique_visitor_cookie_id,visit_id ORDER BY event_position) AS row_count
+      FROM s3_audience.events
+      WHERE url ILIKE '%deeplink%'
+        AND destination = 'PS_IPLAYER'
+        AND app_type LIKE 'bigscreen%'
+        AND (dt BETWEEN 20200115 AND 20200129))
+WHERE row_count = 1;
+
+DROP TABLE vb_tv_all_content_clicks;
+CREATE TABLE vb_tv_all_content_clicks AS
+SELECT DISTINCT dt,
+                unique_visitor_cookie_id,
+                visit_id,
+                event_position,
+                container,
+                CASE
+                    WHEN placement ILIKE '%.channels.%' THEN 'channel_page'
+                    WHEN placement ILIKE '%categories%' AND (placement ILIKE '%cbeebies%' OR placement ILIKE '%cbbc%')
+                        THEN 'categories_page_kids'
+                    WHEN placement ILIKE '%categories%' AND placement NOT ILIKE '%cbeebies%' AND
+                         placement NOT ILIKE '%cbbc%'
+                        THEN 'categories_page_not_kids'
+                    WHEN placement ILIKE 'iplayer.tv.page' THEN 'homepage'
+                    WHEN placement ILIKE '%tleo%' THEN 'tleo_page'
+                    WHEN placement ILIKE '%episode%' THEN 'episode_page'
+                    WHEN placement ILIKE '%.search.%' THEN 'search_page'
+                    WHEN placement ILIKE 'deeplink' THEN 'deeplink'
+                    ELSE 'other_page' END AS placement,
+                attribute
+FROM s3_audience.publisher
+WHERE (attribute LIKE '%page-section-related~select%' OR
+       attribute LIKE '%page-section-rec~select%' OR
+       attribute LIKE 'content-item%' OR
+       attribute LIKE 'start-watching%' OR
+       attribute = 'resume' OR
+       attribute = 'next-episode' OR
+       attribute = 'search-result-episode~click' OR
+       attribute LIKE '%squeeze-auto-play%' OR
+       attribute LIKE '%squeeze-play%' OR
+       attribute LIKE '%end-play%' OR
+       attribute LIKE '%end-auto-play%')
+  AND metadata LIKE '%iplayer::bigscreen-html%'
+  AND destination = 'PS_IPLAYER'
+  AND (dt BETWEEN 20200115 AND 20200129)
+ORDER BY dt, unique_visitor_cookie_id, visit_id, event_position;
+
+
+-- Add in deep links
+INSERT INTO vb_tv_all_content_clicks
+SELECT dt,
+       unique_visitor_cookie_id,
+       visit_id,
+       event_position,
+       CAST('deeplink' AS varchar) AS container,
+       CAST('deeplink' AS varchar) AS placement,
+       CAST('deeplink' AS varchar) AS attribute
+FROM vb_tv_all_clicks_deeplinks;
+
+
+UPDATE vb_tv_all_content_clicks
+SET container = (CASE
+                     WHEN container ILIKE 'module-if-you-liked%' THEN 'module-if-you-liked'
+                     ELSE container END);
+
+
+ALTER TABLE vb_tv_all_content_clicks
+    ADD simple_container_name varchar;
+
+
+UPDATE vb_tv_all_content_clicks
+SET simple_container_name = (
+    CASE
+        WHEN placement = 'tleo_page' THEN (
+            CASE
+                WHEN container ILIKE '%contextual-cta%' THEN 'featured_episode'
+                WHEN container ILIKE 'onward-journey-autoplay-next-episode' THEN 'onward-journey-autoplay-next-episode'
+                WHEN container ILIKE 'live-now' THEN 'live-now'
+                WHEN container ILIKE 'page' THEN 'page'
+                ELSE 'series_selected' END)
+        WHEN placement = 'episode_page' THEN (
+            CASE
+                WHEN container = 'onward-journey-panel-autoplay-next-rec' THEN 'onward-journey-autoplay-next-rec'
+                WHEN container = 'onward-journey-panel-autoplay-next-episode'
+                    THEN 'onward-journey-autoplay-next-episode'
+                ELSE container END)
+        WHEN placement = 'homepage' THEN container
+        ELSE container END);
+
+
+--SELECT placement,container, attribute, count(*) AS num_content_clicks FROM vb_tv_all_content_clicks GROUP BY placement,container, attribute;
+SELECT placement, simple_container_name, attribute, count(*) AS num_content_clicks
+FROM vb_tv_all_content_clicks
+GROUP BY placement, simple_container_name, attribute
+ORDER BY placement, simple_container_name, attribute;
+
+SELECT DISTINCT placement, container
+FROM vb_tv_all_content_clicks;
+
+
 
 
 -- What are the records not in the final table but in the select?
@@ -314,7 +500,6 @@ ORDER BY p.dt, p.unique_visitor_cookie_id, p.visit_id, p.event_position
 --switching-page~current-selected
 
 
-
 /*SELECT CASE
            WHEN placement ILIKE '%channel%' THEN 'channel_page'
            WHEN placement ILIKE '%categories%' AND (placement ILIKE '%cbeebies%' OR placement ILIKE '%cbbc%')
@@ -331,67 +516,3 @@ FROM vb_tv_content_nav_all_cat_channel
 GROUP BY 1;
 */
 
-
-------------      What % of journey's clicking onto content come from where? ----------
-
-
-
-
-DROP TABLE vb_tv_all_content_clicks;
-CREATE TABLE vb_tv_all_content_clicks AS
-SELECT DISTINCT dt,
-                unique_visitor_cookie_id,
-                visit_id,
-                event_position,
-                container,
-                CASE
-                    WHEN placement ILIKE '%.channels.%' THEN 'channel_page'
-                    WHEN placement ILIKE '%categories%' AND (placement ILIKE '%cbeebies%' OR placement ILIKE '%cbbc%')
-                        THEN 'categories_page_kids'
-                    WHEN placement ILIKE '%categories%' AND placement NOT ILIKE '%cbeebies%' AND
-                         placement NOT ILIKE '%cbbc%'
-                        THEN 'categories_page_not_kids'
-                    WHEN placement ILIKE 'iplayer.tv.page' THEN 'homepage'
-                    WHEN placement ILIKE '%tleo%' THEN 'tleo_page'
-                    WHEN placement ILIKE '%episode%' THEN 'episode_page'
-                    WHEN placement ILIKE '%.search.%' THEN 'search_page'
-                    ELSE 'other_page' END AS placement,
-                attribute
-FROM s3_audience.publisher
-WHERE (attribute LIKE '%page-section-related~select%' OR
-       attribute LIKE '%page-section-rec~select%' OR
-       attribute LIKE 'content-item%' OR
-       attribute LIKE 'start-watching%' OR
-       attribute = 'resume' OR
-       attribute = 'next-episode' OR
-       attribute = 'search-result-episode~click' OR
-       attribute LIKE '%squeeze-auto-play%' OR
-       attribute LIKE '%squeeze-play%' OR
-       attribute LIKE '%end-play%' OR
-       attribute LIKE '%end-auto-play%')
-  AND metadata LIKE '%iplayer::bigscreen-html%'
-  AND destination = 'PS_IPLAYER'
-  AND (dt BETWEEN 20200115
-  AND 20200129)
-ORDER BY dt, unique_visitor_cookie_id, visit_id, event_position;
-
-UPDATE vb_tv_all_content_clicks
-SET container = (CASE WHEN container ILIKE 'module-if-you-liked%' THEN 'module-if-you-liked'
-    ELSE container END);
-
-ALTER TABLE vb_tv_all_content_clicks
-ADD simple_container_name varchar;
-
-UPDATE vb_tv_all_content_clicks
-SET simple_container_name = (
-    CASE WHEN placement = 'tleo_page' AND container ILIKE '%contextual-cta%' THEN 'featured_episode'
-    WHEN placement = 'tleo_page' AND container ILIKE 'onward-journey-autoplay-next-episode' THEN 'onward-journey-autoplay-next-episode'
-    WHEN placement = 'tleo_page' AND container ILIKE 'live-now' THEN 'live-now'
-    WHEN placement = 'tleo_page' AND container ILIKE 'page' THEN 'page'
-    ELSE (CASE WHEN placement = 'tleo_page' THEN 'series_selected' ELSE 'placement' END) END
-    );
-
-SELECT placement,container, attribute, count(*) AS num_content_clicks FROM vb_tv_all_content_clicks GROUP BY placement,container, attribute;
-SELECT placement,simple_container_name, attribute, count(*) AS num_content_clicks FROM vb_tv_all_content_clicks GROUP BY placement,simple_container_name, attribute;
-
-SELECT DISTINCT placement,container FROM vb_tv_all_content_clicks;
