@@ -12,23 +12,7 @@ clickTime %>% filter(is.na(clickTime_sec))
 clickTime %>% filter(clickTime_sec<0)
 summary(clickTime)
 
-## Look at data in groups of first 1 minute, first 5, etc
-clickTimeGroups<- clickTime %>% 
-  mutate(timeRange_sec = cut(clickTime_sec, 
-                             breaks = c(-1, 60, 300, 600, 900, 1200, Inf),
-                             labels = c("0-1", "1-5", "5-10", "10-15", "15-20", "20+"))) %>% 
-  group_by(timeRange_sec) %>% 
-  summarize(numInRange=n())
-
-
-ggplot(data = clickTimeGroups, aes(x=timeRange_sec, y=numInRange))+
-  geom_bar(stat = "identity")+
-  scale_y_continuous(limits = c(0,5000000), breaks = c(0, 1000000,2000000,3000000,4000000,5000000), labels = c(0, 1,2,3,4,5))+
-  ylab("Number of Visits with Click in Time Range (millions)")+
-  xlab("Time Range (mins)")
-  theme_classic()
-
- ### Look at data by minute
+############ Look at data by minute
   clickTimeMinutes<- clickTime %>% 
     mutate(timeRange_sec = cut(clickTime_sec, 
                                breaks = c(-1, 60,120,180,240, 300,360,420,480,540, 600,Inf),
@@ -55,7 +39,7 @@ ggplot(data = clickTimeGroups, aes(x=timeRange_sec, y=numInRange))+
   theme_classic() 
 
   
-## Look at data depending on which menu the click was from 
+########### Look at data depending on which menu the click was from 
   clickTimeMinsMenu<- clickTime %>% 
     mutate(timeRange_sec = cut(clickTime_sec, 
                                breaks = c(-1, 60,120,180,240, 300,360,420,480,540, 600,Inf),
@@ -88,7 +72,7 @@ ggplot(data = clickTimeGroups, aes(x=timeRange_sec, y=numInRange))+
   
 
   
-## Look at data depending on where their click took them
+########### Look at data depending on where their click took them
 nextEpInfo<- read.csv("next_ep_type_Jan2020.csv", header = TRUE)
 nextEpInfo <- nextEpInfo %>% rename(clickTime_sec = time_since_content_start_sec)
 nextEpInfo <- nextEpInfo %>% rename(menuType = menu_type)
@@ -134,5 +118,10 @@ ggplot(data = nextEpInfoMins, aes(x=timeRange_sec, y=numInRange/1000000, fill = 
   theme_classic() +
   facet_wrap(~ clickDestination, ncol = 2, nrow = 3, scales = "free") +
  theme(legend.position = "none")
+
+
+
+############### Look at time to click depending on where they came from
+
 
   
