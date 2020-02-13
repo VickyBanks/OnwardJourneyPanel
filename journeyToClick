@@ -468,8 +468,8 @@ ORDER BY placement, simple_container_name, attribute;
 SELECT *
 FROM vb_tv_all_content_clicks;
 
-
-
+SELECT * FROM s3_audience.events WHERE destination = 'PS_IPLAYER' and url LIKE '%deeplink%' and app_type LIKE '%mobile%' ORDER BY dt DESC limit 20;
+SELECT * FROM audience.audience_activity_daily_summary_enriched ORDEr BY date_of_event, audience_id, visit_id LIMIT 50;
 
 -- What are the records not in the final table but in the select?
 /*SELECT p.dt,
