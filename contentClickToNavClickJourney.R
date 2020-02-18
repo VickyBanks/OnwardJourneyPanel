@@ -66,29 +66,41 @@ group_by(content_click_placement, nextEpClass)%>%
   mutate(perc = numEachMenu/sum(numEachMenu)) %>%
   arrange(desc(perc))
 
-ggplot(originToDestinationSummary, aes(x = content_click_placement, y = perc, fill = nextEpClass))+
+#create df for names
+nextEpClass <- data.frame("nextEpClass" = c("0 0 0","1 0 1","1 0 0","1 1 1","1 1 0"),
+                          "clickDestination" = c("New Brand",
+                                                 "Same Brand, Diff Series, Next Ep", 
+                                                 "Same Brand, Diff Series, Diff Ep",
+                                                 "Same Brand & Series, Next Ep",
+                                                 "Same Brand & Series, Diff Ep"))
+originToDestinationSummary<- left_join(originToDestinationSummary, nextEpClass, by = "nextEpClass")
+#set factor levels
+originToDestinationSummary$nextEpClass<- factor(originToDestinationSummary$nextEpClass, 
+                                                levels= c("0 0 0","1 0 1","1 0 0","1 1 1","1 1 0"))
+originToDestinationSummary$clickDestination<- factor(originToDestinationSummary$clickDestination, 
+                                                levels=  c("New Brand",
+                                                           "Same Brand, Diff Series, Next Ep", 
+                                                           "Same Brand, Diff Series, Diff Ep",
+                                                           "Same Brand & Series, Next Ep",
+                                                           "Same Brand & Series, Diff Ep"))
+
+
+ggplot(originToDestinationSummary, aes(x = content_click_placement, y = perc, fill = clickDestination))+
   geom_bar(stat= "identity", position = "fill", width=1, color="black")+
   scale_y_continuous(labels=percent_format())+
-  geom_text(data=subset(originToDestinationSummary, perc > 0.05),
+  geom_text(data=subset(originToDestinationSummary, perc > 0.04),
             aes(label=paste0(sprintf("%1.f", 100*perc,"%")),
                 group = nextEpClass),
             position = position_stack(vjust = 0.5),
             colour="black")+
-  ylab("Percentage of Content CLicks from Each Origin to Each Destination")+
-  
-  
-  ############### HERE ######
-  scale_x_discrete(name = "Click Group", labels= c("All Content", "Nav Click Content"))+
-  ggtitle("Type of Click Taking Users From One Episode Page to Another  \n PS_IPLAYER - Big Screen - 2020-01-15 to 2020-01-29")+
-  scale_fill_manual(values =c( "#037301","#043570"))+
-  #scale_fill_brewer(name = "Container",
-  #                 palette = "Blues", direction = -1)+
-  theme(legend.position="bottom", legend.box = "horizontal")+
-  #guides(fill = "none") #this removed the legend for scale_fill_manual
+  ylab("Percentage of Journeys")+
+  ggtitle(" Percentage of Content Clicks from Each Origin to Each Destination \n PS_IPLAYER - Big Screen - 2020-01-15 to 2020-01-29")+
+  scale_fill_manual(name = "Click Destination", values=rev(wes_palette(n=5, name="Zissou1")))+
+  scale_x_discrete(name = "Content Origin")+
+  theme(legend.position="right", legend.box = "vertical")#+
+  #guides(colour = guide_legend(reverse=T), color = guide_colorbar(reverse = TRUE))
 
-originToDestination %>% filter(visit_id == '4653')
-navClickOrigins%>% filter(visit_id == '4653')
-nextEpInfo%>% filter(visit_id == '4653')
+
 
 
 

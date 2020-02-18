@@ -278,6 +278,7 @@ clickPlacementComparison <- bind_rows(
 
 For each piece of content being viewed when the onward journey navigation was clicked, the origin of the content was found. This was the page where the click to reach content occurred, for example the homepage, a channel page or a TLEO page. Content currently being viewed could also be the origin for another piece of content; in these examples the content origin was classified as as 'episode' page. Deep links into product were also a source. It is worth noting that homepage clicks are only those that take users directly into content, such as the continue watching rail, many click on the homepage would take users to a TLEO from which they select content. 
 
+
 ```{r contentOriginsGraph, echo=FALSE, fig.height = 7, fig.width = 10}
 ## Plot data
 ggplot(clickPlacementComparison, aes(x = clickGroup, y = perc, fill = clickGroup)) +
@@ -289,8 +290,8 @@ ggplot(clickPlacementComparison, aes(x = clickGroup, y = perc, fill = clickGroup
   xlab("Content Origin Page")+
   ggtitle("Routes to Content Comparison \n PS_IPLAYER - Big Screen - 2020-01-15 to 2020-01-29")+
   #scale_fill_discrete(name = "Click Group", labels = c("All Content", "Nav Click Content"))+
-  geom_hline(yintercept = 5, linetype = "dashed")+
-  geom_text(data=subset(clickPlacementComparison, perc > 20),
+  #geom_hline(yintercept = 5, linetype = "dashed")+
+  geom_text(data=subset(clickPlacementComparison, perc > 1),
              aes(label=paste0(sprintf("%1.0f", perc),"%"),),
              position = position_dodge(width = 1),
              vjust = -0.5,
@@ -299,6 +300,38 @@ ggplot(clickPlacementComparison, aes(x = clickGroup, y = perc, fill = clickGroup
   theme(axis.text.x=element_blank(),
         axis.ticks.x=element_blank())
 ```
+
+## Content Origin Identification
+Users complete many clicks to content within their visits so in order to identify the content click that took users to the content being viewed when the navigation bar was clicked three levels of check were completed. Firstly the ID of the content click was matched with the ID of the content being viewed. Secondly,if the ID check was not possible, the master brand of the content click was matched with the masterbrand of the content being viewed. Finally, if the first two were not possible, the content click directly before the navigation click was used. The table below shows the propotion clicks from each origin validated with each type of check.
+
+```{r checkTypeTable, echo = FALSE}
+
+# Find the percentage of clicks with each check for each origin
+#colour the max for each as blue
+navClickOrigins %>%group_by(content_click_placement,check_type)%>%
+  summarise(numClicks = n()) %>%
+  mutate(perc = round(100*numClicks/sum(numClicks),1))%>%
+  select(-numClicks)%>%
+  spread(key = check_type, value = perc) %>%
+  mutate_all(~replace(., is.na(.), 0)) %>%
+  mutate(ep_id_check = cell_spec(ep_id_check, "html",
+                                 bold = if_else(ep_id_check > 90, T,F), 
+                                 color = if_else(ep_id_check > 90, "#043570","black")),
+         master_brand_check = cell_spec(master_brand_check, "html",
+                                        bold = if_else(master_brand_check > 90, T,F),
+                                        color = if_else(master_brand_check> 90, "#043570","black")),
+         only_position_check = cell_spec(only_position_check, "html",
+                                         bold = if_else(only_position_check > 90, T,F),
+                                         color = if_else(only_position_check > 90, "#043570","black"))
+         ) %>%
+    kable(format = "html", escape = F,
+          row.names = FALSE, 
+      col.names = c("Page", "Episode ID", "Masterbrand", "Position Check")) %>%
+  kable_styling(bootstrap_options = c("striped", "hover"), full_width = F) %>%
+  add_header_above(header = c(" " = 1, "Percentage of Clicks per Check Type" = 3))
+
+```
+
 
 ```{r contentPercentages, echo = FALSE}
 # kable(clickPlacementComparison %>% 
@@ -313,7 +346,7 @@ ggplot(clickPlacementComparison, aes(x = clickGroup, y = perc, fill = clickGroup
 
 ## Homepage
 
-Users clicking the onward navigation bar are more likely to have arrived at the content from the homepage than users not using the navigation bar. The most likely route to content is through the 'continue watching' module followed by the 'editorial featured' module, but for those using the navigation bar the proportion coming form 'continue watching' is far higher.
+Users clicking the onward navigation bar are more likely to have arrived at the content from the homepage than users not using the navigation bar. The most likely route to content is through the 'continue watching' module followed by the 'editorial featured' module, but for those using the navigation bar the proportion coming form 'continue watching' is far higher. This supports the hypothesis that users are selecting content in the continue watching bar with the intention to immediately use the navigation to find the right content episode. 
 
 
 ```{r homepageClickBreakdown, echo = FALSE}
@@ -356,14 +389,14 @@ add_header_above(header = c(" " = 2, "Percentage of clicks" = 2))
 
 
 
-Users clicking the onward navigation bar are more likely to have arrived at the content from the homepage, channels pages and categories pages than those not using the navigation bar. This is most likely because those pages take users directly into one specific episode which was not the one users wanted. For example if a user has previously watched episode one of a series the continue watching rail on hompage will present them episode two, but if the user is on a channel page clicking the series title will take them to episode one, even though the system knows they've watched episode one.
-
-Users clicking the navigation bar are less likely to have come from another episode than user's not clicking the bar. This is most likely because users coming from an episode are auto-playing the next episode
+## Episode Pages
+In most cases (89%) the autoplay system takes users from one episode to another, however in cases where users click the onward navigation bar on the second episode page they are far less likely to have come through autoplay (35% of cases). Instead, 65% of journeys came from the user purposefully selecting the onward journey navigation bar which is significantly higher than the 14% for journeys where the navigation is not selected on the second episode. So users leaving a piece of content via navigation bar are far more likely to arrive by the navigation bar suggesting that viewers are potentially navigating through multiple pages to reach the desired content.
 
 
 
 ```{r episodeOriginsGraph, echo = FALSE, fig.width = 10}
 ### How are users from an episode page getting to the next content
+#Join the all clicks content and the anv clicks content origin summaires
 episodeOrigins<- left_join(
 navClickOrigins %>% filter(content_click_placement== 'episode') %>%
   group_by(content_click_container) %>%
@@ -376,42 +409,39 @@ allClickOrigins %>% filter(placement == 'episode') %>%
   mutate(allPerc = round(numEvents/sum(numEvents),3))%>%
   select(-numEvents), by= c("content_click_container"="simple_container_name"))
 
+#Set lebels and simplify names
 episodeOrigins<- episodeOrigins%>%rename(container = content_click_container)
-
 episodeOrigins<- gather(data= episodeOrigins, key = "clickGroup", value = "perc", navPerc, allPerc)
-episodeOrigins$container<-factor(episodeOrigins$container, 
-                                 levels = c("page-section-rec",
-                                            "onward-journey-autoplay-next-rec",
-                                            "page-section-related",
-                                            "onward-journey-autoplay-next-episode"))
-
 episodeOrigins$container<- recode(episodeOrigins$container, 
                                   "page-section-rec" = 'Nav Click - Rec',
                                     "onward-journey-autoplay-next-rec" = 'Autoplay - Rec',
                                     "page-section-related" = 'Nav Click - Related',
                                     "onward-journey-autoplay-next-episode" = 'Autoplay - Related')
-                                  
+episodeOrigins$container<-factor(episodeOrigins$container, 
+                                 levels = c( "Autoplay - Related",
+                                            "Autoplay - Rec",
+                                            "Nav Click - Related",
+                                            "Nav Click - Rec"))
 
-
-
-ggplot(data = episodeOrigins, aes(x = clickGroup, y = perc, fill = clickGroup)) +
-  geom_bar(stat= "identity", position = "fill", width=1, color="black", aes(alpha=container))+
-  scale_alpha_manual(values=c(0.25,0.5,0.75,1.0), name = "Click Type Colour Scale")+
-  scale_y_continuous(labels=percent_format())+
+#Bar Chart of how people go from one episode to another
+ggplot(episodeOrigins, aes(x = clickGroup, y = perc, fill = clickGroup)) +
+  geom_bar(stat = "Identity", position = position_dodge(width = 1) )+
+  scale_y_continuous(limits = c(0,0.80), breaks = c(0,0.05,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8), 
+                     labels = c(0,5,10,20,30,40,50,60,70,80))+
+  scale_fill_manual(values = c("#037301","#043570"), name = "Click Group", labels = c("All Content", "Nav Click Content"))+
+  ylab("Percentage of Content Clicks from Each Origin")+
+  xlab("Route From One Episode to the Next")+
+  ggtitle("Routes From One Episode to Another \n PS_IPLAYER - Big Screen - 2020-01-15 to 2020-01-29")+
+  #scale_fill_discrete(name = "Click Group", labels = c("All Content", "Nav Click Content"))+
+  geom_hline(yintercept = 0.05, linetype = "dashed")+
   geom_text(data=subset(episodeOrigins, perc > 0.05),
-            aes(label=paste0(sprintf("%1.f", 100*perc,"%")),
-                group = container),
-            position = position_stack(vjust = 0.5),
+            aes(label=paste0(sprintf("%1.0f", 100*perc),"%"),),
+            position = position_dodge(width = 1),
+            vjust = -0.5,
             colour="black")+
-  coord_cartesian(ylim = c(0, 1))+
-  ylab("Percentage of Content Clicks from Each Type")+
-  scale_x_discrete(name = "Click Group", labels= c("All Content", "Nav Click Content"))+
-  ggtitle("Type of Click Taking Users From One Episode Page to Another  \n PS_IPLAYER - Big Screen - 2020-01-15 to 2020-01-29")+
-  scale_fill_manual(values =c( "#037301","#043570"))+
-  #scale_fill_brewer(name = "Container",
-   #                 palette = "Blues", direction = -1)+
-  theme(legend.position="bottom", legend.box = "horizontal")+
-  guides(fill = "none") #this removed the legend for scale_fill_manual
+  facet_wrap(~ container, nrow = 1, strip.position = "bottom")+
+  theme(axis.text.x=element_blank(),
+        axis.ticks.x=element_blank())
 ```
 
 Of those people who leave content via the navigation bar, 50% + 15% arrived using the navigation bar. Normally only 10+4% use that to get from one episode to another. 
@@ -419,4 +449,7 @@ If they use the nav bar to get to content, they're very likely to use it again.
 So if they use it, they're big users.
 
 Maybe for this graph we only need the % of those using the nav bar. 
+
+
+# Full Journeys
 
