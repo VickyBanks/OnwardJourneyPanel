@@ -84,24 +84,43 @@ originToDestinationSummary$clickDestination<- factor(originToDestinationSummary$
                                                            "Same Brand & Series, Next Ep",
                                                            "Same Brand & Series, Diff Ep"))
 
+originTotalPerc<- originToDestination %>%
+  group_by(content_click_placement)%>%
+  summarise(numEachMenu = n()) %>%
+  mutate(perc = numEachMenu/sum(numEachMenu)) %>%
+  arrange(desc(perc)) %>% select(-numEachMenu) %>%
+  mutate(value100 = 100)
 
+######## Stacked Bar chart with lots of labels #########
 ggplot(originToDestinationSummary, aes(x = content_click_placement, y = perc, fill = clickDestination))+
   geom_bar(stat= "identity", position = "fill", width=1, color="black")+
-  scale_y_continuous(labels=percent_format())+
-  geom_text(data=subset(originToDestinationSummary, perc > 0.04),
-            aes(label=paste0(sprintf("%1.f", 100*perc,"%")),
+  #scale_y_continuous(labels=percent_format())+
+  scale_y_continuous(limits = c(0,1.1), breaks = c(0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8, 0.9, 1.0), 
+                     labels = percent_format())+
+  geom_text(data=subset(originToDestinationSummary, perc > 0.06),
+            aes(label=paste0(sprintf("%1.f", 100*perc),"%"),
                 group = nextEpClass),
             position = position_stack(vjust = 0.5),
             colour="black")+
+  geom_label(data = originTotalPerc, 
+            aes(label=paste0(sprintf("%1.f", 100*perc),"%"),
+                fill = NULL,
+                y = 1.05))+
+  geom_label(data = originTotalPerc%>%filter(content_click_placement == 'homepage'),
+             aes(label="                                        Proportion of Clicks from Each Origin",
+                 fill = NULL,
+                 y = 1.1,
+                 x = 1
+                 ))+
   ylab("Percentage of Journeys")+
   ggtitle(" Percentage of Content Clicks from Each Origin to Each Destination \n PS_IPLAYER - Big Screen - 2020-01-15 to 2020-01-29")+
   scale_fill_manual(name = "Click Destination", values=rev(wes_palette(n=5, name="Zissou1")))+
   scale_x_discrete(name = "Content Origin")+
-  theme(legend.position="right", legend.box = "vertical")#+
-  #guides(colour = guide_legend(reverse=T), color = guide_colorbar(reverse = TRUE))
+  theme(legend.position="right", legend.box = "vertical")+
+  guides(fill = guide_legend(override.aes = aes(label = "")))#removed the 'a' from the legend
+text(c(0,6,9), -0.6, paste('hello world', c(1:3)), xpd=NA)
 
-
-
+######### The above done as separate charts #######
 
 
 
