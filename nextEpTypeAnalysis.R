@@ -98,3 +98,5 @@ allClicksSankey <- sankeyNetwork(Links = links, Nodes = nodes, Source = "source"
               Target = "target", Value = "value", NodeID = "name", 
               NodeGroup = "group", colourScale = colours, fontSize = 12)
 allClicksSankey
+
+
