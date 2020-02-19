@@ -38,9 +38,16 @@ navClickOrigins$content_click_placement<- factor(navClickOrigins$content_click_p
                                                     levels =c('homepage', 'tleo', 'episode', 'channels', 'categories', 'deeplink', 'search', 'other') )
 
 
-#nextEpInfo <- nextEpInfo %>% rename(clickTime_sec = time_since_content_start_sec)
+##################### What level of checks were given to each content? ####################################
+navClickOrigins %>% group_by(content_click_placement,check_type)%>%
+  summarise(numClicks = n()) %>%
+  mutate(perc = round(100*numClicks/sum(numClicks),1))%>%
+  select(-numClicks)%>%
+  spread(key = check_type, value = perc) %>%
+  mutate_all(~replace(., is.na(.), 0))
 
-###### How does the route to content differ for those where the nav was clicked?
+
+######################## How does the route to content differ for those where the nav was clicked?##################
 navClickPlacement <- navClickOrigins %>% 
   group_by(content_click_placement) %>%
   summarise(numEvents = n()) %>%
@@ -71,7 +78,7 @@ ggplot(navClickPlacement, aes(x = placement, y = numEvents)) +
              position = position_stack(vjust = 4.0),
              colour="black")
 
-##### For all clicks to content
+############################# For all clicks to content####################################
 allClickPlacement <- allClickOrigins %>% 
   group_by(placement) %>%
   summarise(numEvents = sum(num_content_clicks)) %>%
@@ -100,14 +107,14 @@ ggplot(allClickPlacement, aes(x = placement, y = numEvents)) +
              position = position_stack(vjust = 5.0),
              colour="black")
 
-###### Join for comparison
+######################## Join for comparison ################################################
 clickPlacementComparison <- bind_rows(
   allClickPlacement %>% mutate(clickGroup = 'All Content'),
   navClickPlacement %>% mutate(clickGroup = 'Nav Click'))
 
 clickPlacementComparison %>% arrange(perc)
 
-
+#### Dodge bar chart comparing the two
 ggplot(clickPlacementComparison, aes(x = clickGroup, y = perc, fill = clickGroup)) +
   geom_bar(stat = "Identity", position = position_dodge(width = 1) )+
   scale_y_continuous(limits = c(0,50), breaks = c(0,5,10,15,20,25,30,35,40,45,50), 
@@ -117,8 +124,8 @@ ggplot(clickPlacementComparison, aes(x = clickGroup, y = perc, fill = clickGroup
   xlab("Content Origin Page")+
   ggtitle("Routes to Content Comparison \n PS_IPLAYER - Big Screen - 2020-01-15 to 2020-01-29")+
   #scale_fill_discrete(name = "Click Group", labels = c("All Content", "Nav Click Content"))+
-  geom_hline(yintercept = 5, linetype = "dashed")+
-  geom_text(data=subset(clickPlacementComparison, perc > 20),
+  #geom_hline(yintercept = 5, linetype = "dashed")+
+  geom_text(data=subset(clickPlacementComparison, perc > 1),
              aes(label=paste0(sprintf("%1.0f", perc),"%"),),
              position = position_dodge(width = 1),
              vjust = -0.5,
@@ -130,6 +137,8 @@ ggplot(clickPlacementComparison, aes(x = clickGroup, y = perc, fill = clickGroup
 clickPlacementComparison$placement2<- factor(clickPlacementComparison$placement, 
                                              levels = c('other','search','deeplink','categories', 'channels','tleo', 'homepage', 'episode' ))
 clickPlacementComparison
+
+## Stacked bar chart comparing % from different placements (e.g homepage, deep link)
 ggplot(data = clickPlacementComparison, aes(x = clickGroup, y = perc, fill = placement2)) +
   geom_bar(stat= "identity", position = "fill", width=1, color="black")+
   scale_y_continuous(labels=percent_format())+
@@ -148,7 +157,8 @@ ggplot(data = clickPlacementComparison, aes(x = clickGroup, y = perc, fill = pla
 
 
 
-### How are users from an episode page getting to the next content
+
+##################### How are users from an episode page getting to the next content  ##############################
 episodeOrigins<- left_join(
 navClickOrigins %>% filter(content_click_placement== 'episode') %>%
   group_by(content_click_container) %>%
@@ -178,7 +188,7 @@ episodeOrigins$container<- recode(episodeOrigins$container,
                                   
 episodeOrigins
 
-
+### Stacked Bar graph to show how people move from one episode page to another
 ggplot(data = episodeOrigins, aes(x = clickGroup, y = perc, fill = clickGroup)) +
   geom_bar(stat= "identity", position = "fill", width=1, color="black", aes(alpha=container))+
   scale_alpha_manual(values=c(0.25,0.5,0.75,1.0), name = "Click Type Colour Scale")+
@@ -188,23 +198,40 @@ ggplot(data = episodeOrigins, aes(x = clickGroup, y = perc, fill = clickGroup)) 
                 group = container),
             position = position_stack(vjust = 0.5),
             colour="black")+
-# geom_text(data=subset(episodeOrigins, perc > 0.05),
-#           aes(label=container),
-#           position = position_stack(vjust = 0.5),
-#           colour="black")+
-#   coord_cartesian(ylim = c(0, 1))+
   ylab("Percentage of Content CLicks from Each Origin")+
   scale_x_discrete(name = "Click Group", labels= c("All Content", "Nav Click Content"))+
   ggtitle("Type of Click Taking Users From One Episode Page to Another  \n PS_IPLAYER - Big Screen - 2020-01-15 to 2020-01-29")+
   scale_fill_manual(values =c( "#037301","#043570"))+
-  #scale_fill_brewer(name = "Container",
-   #                 palette = "Blues", direction = -1)+
   theme(legend.position="bottom", legend.box = "horizontal")+
   guides(fill = "none") #this removed the legend for scale_fill_manual
 
 
+####Dodge bar chart
+#reset levels
+episodeOrigins$container<-factor(episodeOrigins$container, levels = c( "Autoplay - Related","Autoplay - Rec","Nav Click - Related","Nav Click - Rec"))
 
-###### Homepage
+ggplot(episodeOrigins, aes(x = clickGroup, y = perc, fill = clickGroup)) +
+  geom_bar(stat = "Identity", position = position_dodge(width = 1) )+
+  scale_y_continuous(limits = c(0,0.80), breaks = c(0,0.05,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8), 
+                     labels = c(0,5,10,20,30,40,50,60,70,80))+
+  scale_fill_manual(values = c("#037301","#043570"), name = "Click Group", labels = c("All Content", "Nav Click Content"))+
+  ylab("Percentage of Content Clicks from Each Origin")+
+  xlab("Route From One Episode to the Next")+
+  ggtitle("Routes From One Episode to Another \n PS_IPLAYER - Big Screen - 2020-01-15 to 2020-01-29")+
+  #scale_fill_discrete(name = "Click Group", labels = c("All Content", "Nav Click Content"))+
+  geom_hline(yintercept = 0.05, linetype = "dashed")+
+  geom_text(data=subset(episodeOrigins, perc > 0.05),
+            aes(label=paste0(sprintf("%1.0f", 100*perc),"%"),),
+            position = position_dodge(width = 1),
+            vjust = -0.5,
+            colour="black")+
+  facet_wrap(~ container, nrow = 1, strip.position = "bottom")+
+  theme(axis.text.x=element_blank(),
+        axis.ticks.x=element_blank())
+
+
+
+####################################      Homepage             ########################
 allClickOrigins%>% filter(placement == 'homepage') %>% distinct(simple_container_name)
 navClickOrigins %>% filter(content_click_placement == 'homepage') %>% distinct( content_click_container)
 
