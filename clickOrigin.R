@@ -37,6 +37,20 @@ navClickOrigins$content_click_placement<- recode(navClickOrigins$content_click_p
 navClickOrigins$content_click_placement<- factor(navClickOrigins$content_click_placement, 
                                                     levels =c('homepage', 'tleo', 'episode', 'channels', 'categories', 'deeplink', 'search', 'other') )
 
+#### How many visits have more than one nav click? ####
+
+multipleNavClicks<- navClickOrigins %>% group_by(dt,unique_visitor_cookie_id, visit_id) %>%
+  summarise(numClicks = n()) %>%
+  mutate(numClicks = ifelse(numClicks >=10, 10,numClicks))%>% 
+  ungroup()%>%
+  group_by(numClicks) %>%
+  summarise(numUsers = n())%>%
+  mutate(perc = round(100*numUsers/sum(numUsers),1))
+
+multipleNavClicks$numClicks<- as.character(multipleNavClicks$numClicks) %>% recode("10"= "10+")
+multipleNavClicks$numClicks<- factor(multipleNavClicks$numClicks, 
+                                     levels = c("1","2","3","4","5","6","7", "8", "9", "10+"))
+multipleNavClicks
 
 ##################### What level of checks were given to each content? ####################################
 navClickOrigins %>% group_by(content_click_placement,check_type)%>%
