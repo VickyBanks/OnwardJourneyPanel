@@ -327,6 +327,20 @@ sankeyJourney
 
 #################################### Time to Click Depending on Origin ################################################################################################
 
+
+originTotalPerc<- originToDestination %>%
+  group_by(content_click_placement)%>%
+  summarise(numEachMenu = n()) %>%
+  mutate(perc = numEachMenu/sum(numEachMenu)) %>%
+  arrange(desc(perc)) %>%
+  mutate(clickDestination = "Same Brand & Series, Diff Ep") %>%
+  mutate(timeRange_sec = "0-1") %>%
+  left_join(timeToClickByOrigin %>% filter(timeRange_sec == '0-1')%>%select(content_click_placement, numInRange), by = "content_click_placement")
+
+originTotalPerc$content_click_placement<- factor(originTotalPerc$content_click_placement, 
+                                                 levels = c('episode','homepage','channels','categories','tleo','deeplink','search','other'))
+
+
 timeToClickByOrigin <- originToDestination %>%
 mutate(timeRange_sec = cut(clickTime_sec, 
                            breaks = c(-1, 60,120,180,240, 300,360,420,480,540, 600,Inf),
@@ -334,5 +348,200 @@ mutate(timeRange_sec = cut(clickTime_sec,
   group_by(content_click_placement, timeRange_sec) %>% 
   summarize(numInRange=n()) %>%
   mutate(perc = round(100*numInRange/sum(numInRange),1)) 
+timeToClickByOrigin$content_click_placement<- factor(timeToClickByOrigin$content_click_placement, 
+                                                     levels = c('episode','homepage','channels','categories','tleo','deeplink','search','other'))
+
+timeToClickByOrigin %>% filter(timeRange_sec == '0-1')%>%select(content_click_placement, numInRange)
+
+ggplot(data=timeToClickByOrigin, aes(x = timeRange_sec, y =  numInRange)) +
+  geom_bar(stat = "identity", fill = "#043570")+
+  #scale_y_continuous(limits = c(0,1500000), breaks = c(0,1500000), labels = c(0,0.25, 1,2,3,4,5))+
+  ylab("Number of Visits with Click in Time Range (millions)")+
+  xlab("Time Range (mins)")+
+  geom_label(data = originTotalPerc,
+             aes(label = paste0("                        ","Origin for ",round(100*perc,0), "% of clicks"),
+                 fill = NULL),
+             position = position_stack(vjust = 1.1)
+                 # y = 0.8,
+                 # x = 1)
+             )+
+  geom_text(data=subset(timeToClickByOrigin, perc > 5),
+            aes(label=paste0(sprintf("%1.f", perc),"%")),
+            position = position_stack(vjust = 0.5),
+            colour="white")+
+  ggtitle(" Percentage of Content Clicks from Each Origin to Each Destination \n PS_IPLAYER - Big Screen - 2020-01-15 to 2020-01-29")+
+  scale_fill_manual(name = "Click Destination", values=(wes_palette(n=5, name="Zissou1")))+
+  theme_classic() +
+  facet_wrap(~ content_click_placement, ncol = 2, nrow = 4, scales = "free") +
+  theme(legend.position = "bottom",
+        legend.box = "horizontal", 
+        axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank()) 
+  #guides(fill = guide_legend(override.aes = aes(label = ""), nrow = 3,byrow = TRUE ))
 
 
+#################################### Time to Click - TLEO and destination ################################################################################################
+clickTimeTLEO<- 
+  originToDestination %>%
+  mutate(timeRange_sec = cut(clickTime_sec, 
+                             breaks = c(-1, 60,120,180,240, 300,360,420,480,540, 600,Inf),
+                             labels = c("0-1", "1-2", "2-3", "3-4", "4-5", "5-6", "6-7", "7-8", "8-9", "9-10", "10+"))) %>% 
+  filter(content_click_placement == 'tleo')%>%
+  group_by(nextEpClass, timeRange_sec) %>% 
+  summarize(numInRange=n()) %>%
+  mutate(perc = round(100*numInRange/sum(numInRange),1))%>%
+  left_join(nextEpClass, by = "nextEpClass") %>%
+  ungroup()%>%
+  select(clickDestination, timeRange_sec, perc)%>%
+  spread(key = clickDestination, value = perc)
+
+
+tleoDestinationTimeToClickPerc<-
+originToDestination %>%
+  mutate(timeRange_sec = cut(clickTime_sec, 
+                             breaks = c(-1, 60,120,180,240, 300,360,420,480,540, 600,Inf),
+                             labels = c("0-1", "1-2", "2-3", "3-4", "4-5", "5-6", "6-7", "7-8", "8-9", "9-10", "10+"))) %>% 
+  filter(content_click_placement == 'tleo')%>%
+  group_by(timeRange_sec,nextEpClass) %>% 
+  summarize(numInRange=n()) %>%
+  mutate(perc = round(numInRange/sum(numInRange),3))%>%
+  left_join(nextEpClass, by = "nextEpClass") %>%
+  ungroup()%>%
+  select(clickDestination,timeRange_sec, perc)
+
+tleoDestinationTimeToClickPerc$clickDestination<- factor(tleoDestinationTimeToClickPerc$clickDestination, 
+                                                     levels=  c("Same Brand & Series, Diff Ep",
+                                                                 "Same Brand & Series, Next Ep",
+                                                                 "Same Brand, Diff Series, Diff Ep",
+                                                                 "Same Brand, Diff Series, Next Ep",
+                                                                 "New Brand"))
+
+
+  
+
+
+
+tleoDestinationTimeToClickRaw<-
+  originToDestination %>%
+  mutate(timeRange_sec = cut(clickTime_sec, 
+                             breaks = c(-1, 60,120,180,240, 300,360,420,480,540, 600,Inf),
+                             labels = c("0-1", "1-2", "2-3", "3-4", "4-5", "5-6", "6-7", "7-8", "8-9", "9-10", "10+"))) %>% 
+  filter(content_click_placement == 'tleo')%>%
+  group_by(timeRange_sec,nextEpClass) %>% 
+  summarize(numInRange=n()) %>%
+  mutate(perc = round(numInRange/sum(numInRange),3))%>%
+  left_join(nextEpClass, by = "nextEpClass") %>%
+  ungroup()%>%
+  select(clickDestination,timeRange_sec, numInRange, perc)%>%
+    filter(timeRange_sec == "3-4"|timeRange_sec == "4-5"| timeRange_sec == "5-6") 
+  
+  
+############# Create a DF to give the running total of people still on the content (i.e have not clicked away)
+tleoRunningTotal<-
+  originToDestination %>%
+  mutate(timeRange_sec = cut(clickTime_sec, 
+                             breaks = c(-1, 60,120,180,240, 300,360,420,480,540, 600,Inf),
+                             labels = c("0-1", "1-2", "2-3", "3-4", "4-5", "5-6", "6-7", "7-8", "8-9", "9-10", "10+"))) %>% 
+  filter(content_click_placement == 'tleo') %>%
+  left_join(nextEpClass, by = "nextEpClass")%>%
+  group_by(timeRange_sec)%>%
+  summarise(numInRange =n()) %>%
+  mutate(totalInDest = sum(numInRange))%>%
+  mutate(runningTotal = cumsum(numInRange))%>%
+  mutate(totalRemaining = totalInDest - runningTotal)%>%
+  select(timeRange_sec,totalRemaining,totalInDest)
+
+tleoRunningTotal_initial<- tleoRunningTotal %>% 
+  filter(timeRange_sec == "0-1") %>%
+  select(timeRange_sec,totalInDest)
+tleoRunningTotal_initial<- tleoRunningTotal_initial%>%rename(totalRemaining = totalInDest)
+  
+tleoRunningTotal$timeRange_sec<-recode(tleoRunningTotal$timeRange_sec,
+                                       "0-1" = "1-2",
+                                       "1-2" = "2-3",
+                                       "2-3" = "3-4",
+                                       "3-4" = "4-5",
+                                       "4-5" = "5-6",
+                                       "5-6" = "6-7",
+                                       "6-7" = "7-8",
+                                       "7-8" = "8-9",
+                                       "8-9" = "9-10",
+                                       "9-10" = "10+",
+                                       "10+" = "11+") 
+  
+tleoRunningTotal<- tleoRunningTotal%>%select(-totalInDest)%>%filter(timeRange_sec!= "11+")
+tleoRunningTotal<-bind_rows(tleoRunningTotal,tleoRunningTotal_initial)
+
+
+tleoRunningTotal$timeRange_sec<- factor(tleoRunningTotal$timeRange_sec,
+                                        levels = c("0-1","1-2","2-3","3-4","4-5","5-6","6-7","7-8","8-9","9-10","10+"))
+
+
+tleoRunningTotal<- tleoRunningTotal%>%arrange(timeRange_sec) %>%
+  mutate(perc = round(totalRemaining/524383,3))%>%
+  select(-totalRemaining)%>%
+  mutate(clickDestination = "clicksRemaining")
+tleoRunningTotal
+
+# ggplot(data = tleoDestinationTimeToClickPerc, aes(x = timeRange_sec, y = perc, colour = clickDestination, group = clickDestination))+
+#   geom_point()+
+#   geom_line()+
+#   scale_y_continuous(limits = c(0,0.6), breaks = c(0,0.1,0.2,0.3, 0.4,0.5,0.6), 
+#                      labels = percent_format())+
+#   scale_colour_manual(name = "Click Destination", values=(wes_palette(n=5, name="Zissou1")))+
+#   ylab("Percentage of Clicks to Each Destination")+
+#   xlab("Time Since Content Start (mins)")+
+#   ggtitle("Click Destination From TLEO Origin \n PS_IPLAYER - Big Screen - 2020-01-15 to 2020-01-29")+
+#   geom_text(data=tleoDestinationTimeToClickPerc%>%filter(perc == 0.399 | perc ==0.541),
+#             aes(label=paste0(sprintf("%1.f", 100*perc),"%")),
+#             position = position_nudge(x= 0.01, y = 0.03),
+#             colour="black")
+
+### Join together the % still on the content and the % making a click to different destinations
+tleoTimeToClick_All<- bind_rows(tleoDestinationTimeToClickPerc, tleoRunningTotal)
+tleoTimeToClick_All$clickDestination<- factor(tleoTimeToClick_All$clickDestination, 
+                                              levels=  c("Same Brand & Series, Diff Ep",
+                                                         "Same Brand & Series, Next Ep",
+                                                         "Same Brand, Diff Series, Diff Ep",
+                                                         "Same Brand, Diff Series, Next Ep",
+                                                         "New Brand",
+                                                         "clicksRemaining"))
+
+### plot to give line graph for % of clicks to different destinations each minute
+### and % of users still on content
+ggplot()+
+  geom_bar(data = tleoTimeToClick_All%>%filter(clickDestination=='clicksRemaining'), 
+           aes(x = timeRange_sec, y = perc),
+           stat = "identity",
+           fill = "#043570",
+           alpha = 0.2)+
+  geom_point(data = tleoTimeToClick_All%>%filter(clickDestination!='clicksRemaining'), 
+             aes(x = timeRange_sec, y = perc, colour = clickDestination, group = clickDestination))+
+  geom_line(data = tleoTimeToClick_All%>%filter(clickDestination!='clicksRemaining'),
+            aes(x = timeRange_sec, y = perc, colour = clickDestination, group = clickDestination))+
+  scale_y_continuous(limits = c(0,1.05), breaks = c(0,0.1,0.2,0.3, 0.4,0.5,0.6,0.7,0.8,0.9,1.0), 
+                     labels = percent_format())+
+  scale_colour_manual(name = "Click Destination", values=(wes_palette(n=5, name="Zissou1")))+
+  ylab("Percentage of Clicks to Each Destination")+
+  xlab("Time Since Content Start (mins)")+
+  ggtitle("Click Destination From TLEO Origin \n PS_IPLAYER - Big Screen - 2020-01-15 to 2020-01-29")+
+  geom_label(aes(label = "Percentage of Users Remaining"),
+            colour="black",
+            x = 1.75, y =1.02,
+            fill = "#043570",
+            alpha = 0.2
+            )+
+    geom_text(data = tleoTimeToClick_All%>%filter(clickDestination!='clicksRemaining')%>%filter(perc == 0.399),
+              aes(label=paste0(sprintf("%1.f", 100*perc),"%")),
+              x = 11, y =0.42,
+              colour="black")+
+  geom_text(data = tleoTimeToClick_All%>%filter(clickDestination!='clicksRemaining')%>%filter(perc == 0.541),
+            aes(label=paste0(sprintf("%1.f", 100*perc),"%")),
+            x = 5, y =0.56,
+            colour="black")
+  
+  
+
+  
+tleoTimeToClick_All%>%filter(clickDestination!='clicksRemaining')%>%filter(perc == 0.399 | perc ==0.541)
