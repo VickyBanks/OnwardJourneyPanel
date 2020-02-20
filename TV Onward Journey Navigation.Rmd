@@ -103,45 +103,8 @@ colours <- 'd3.scaleOrdinal() .domain(["a","b","c","d","e","f","g","h","i"])
 allClicksSankey <- sankeyNetwork(Links = links, Nodes = nodes, Source = "source", 
               Target = "target", Value = "value", NodeID = "name", 
               NodeGroup = "group", colourScale = colours, fontSize = 12)
+allClicksSankey 
 
-
-# htmlwidgets::onRender(allClicksSankey, jsCode =
-#         'function(){
-#           document.getElementsByTagName("svg")[0].setAttribute("viewBox", "");
-#           document.getElementsByTagName("svg")[1].setAttribute("viewBox", "");
-#           document.getElementsByTagName("svg")[2].setAttribute("viewBox", "");
-#           document.getElementsByTagName("svg")[3].setAttribute("viewBox", "");
-#           document.getElementsByTagName("svg")[4].setAttribute("viewBox", "");
-#         }')
-
-onRender(allClicksSankey,
-         '
-function(el, x) {
-    var sankey = this.sankey;
-    var path = sankey.link();
-    var nodes = d3.selectAll(".node");
-    var link = d3.selectAll(".link")
-    var width = el.getBoundingClientRect().width - 40;
-    var height = el.getBoundingClientRect().height - 40;
-
-    window.dragmove = function(d) {
-      d3.select(this).attr("transform", 
-        "translate(" + (
-           d.x = Math.max(0, Math.min(width - d.dx, d3.event.x))
-            ) + "," + (
-            d.y = Math.max(0, Math.min(height - d.dy, d3.event.y))
-          ) + ")");
-      sankey.relayout();
-      link.attr("d", path);
-    };
-
-    nodes.call(d3.drag()
-      .subject(function(d) { return d; })
-      .on("start", function() { this.parentNode.appendChild(this); })
-      .on("drag", dragmove));
-  }
-  '
-)
 
 ```
 
@@ -251,7 +214,7 @@ ggplot(data = nextEpInfoMins, aes(x=timeRange_sec, y=numInRange/1000000, fill = 
 ```
 
 
-# Click Origin
+# Content Origin
 
 
 ```{r contentOriginsData, echo=FALSE}
@@ -576,13 +539,11 @@ nodes = data.frame("name" = factor(c('all clicks',
 names(links) <- c("source","target","value")
 nodes$group<-as.factor(c("a","b","c","d","e","f","g","h","i","j","k","l","m","n"))
 
-colours <- 'd3.scaleOrdinal() .domain(["a","b","c","d","e","f","g","h","i","j","k","l","m"])
-.range(["#043570","#043570","#043570","#043570","#043570","#043570","#043570","#043570","#043570",
-"#F21A00","#3B9AB2", "#78B7C5","#E1AF00","#EBCC2A"])'
+colours <- 'd3.scaleOrdinal() .domain(["a","b","c","d","e","f","g","h","i","j","k","l","m"]).range(["#043570","#043570","#043570","#043570","#043570","#043570","#043570","#043570","#043570","#F21A00","#3B9AB2", "#78B7C5","#E1AF00","#EBCC2A"])'
 
 #lengths should be the same
-#length(unique(c(links$source, links$target)))
-#length(nodes$group)
+# length(unique(c(links$source, links$target)))
+# length(nodes$group)
 
 sankeyJourney<- sankeyNetwork(
   Links = links,
@@ -595,32 +556,38 @@ sankeyJourney<- sankeyNetwork(
   colourScale = colours,
   fontSize = 12,
   iterations = 0)#this puts the order as in the nodes dataframe
+#sankeyJourney
 
+htmlwidgets::onRender(sankeyJourney, jsCode =
+        'function(){
+          document.getElementsByTagName("svg")[0].setAttribute("viewBox", "");
+          document.getElementsByTagName("svg")[1].setAttribute("viewBox", "");
+        }')
+# htmlwidgets::onRender(sankeyJourney,
+#          'function(el, x) {
+#     var sankey = this.sankey;
+#     var path = sankey.link();
+#     var nodes = d3.selectAll(".node");
+#     var link = d3.selectAll(".link")
+#     var width = el.getBoundingClientRect().width - 40;
+#     var height = el.getBoundingClientRect().height - 40;
+# 
+#     window.dragmove = function(d) {
+#       d3.select(this).attr("transform",
+#         "translate(" + (
+#            d.x = Math.max(0, Math.min(width - d.dx, d3.event.x))
+#             ) + "," + (
+#             d.y = Math.max(0, Math.min(height - d.dy, d3.event.y))
+#           ) + ")");
+#       sankey.relayout();
+#       link.attr("d", path);
+#       };
+#     nodes.call(d3.drag()
+#       .subject(function(d) { return d; })
+#       .on("start", function() { this.parentNode.appendChild(this); })
+#       .on("drag", dragmove));}'
+#     )
 
-onRender(sankeyJourney,
-         'function(el, x) {
-    var sankey = this.sankey;
-    var path = sankey.link();
-    var nodes = d3.selectAll(".node");
-    var link = d3.selectAll(".link")
-    var width = el.getBoundingClientRect().width - 40;
-    var height = el.getBoundingClientRect().height - 40;
-
-    window.dragmove = function(d) {
-      d3.select(this).attr("transform",
-        "translate(" + (
-           d.x = Math.max(0, Math.min(width - d.dx, d3.event.x))
-            ) + "," + (
-            d.y = Math.max(0, Math.min(height - d.dy, d3.event.y))
-          ) + ")");
-      sankey.relayout();
-      link.attr("d", path);
-    };
-
-    nodes.call(d3.drag()
-      .subject(function(d) { return d; })
-      .on("start", function() { this.parentNode.appendChild(this); })
-      .on("drag", dragmove));}') #This makes it moveable
 ```
 
 
@@ -698,3 +665,4 @@ ggplot(data = originToDestinationSummary2,
         axis.ticks.x=element_blank()) +
   guides(fill = guide_legend(override.aes = aes(label = ""), nrow = 3,byrow = TRUE ))
 ```
+
