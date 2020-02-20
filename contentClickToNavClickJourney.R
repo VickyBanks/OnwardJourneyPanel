@@ -543,5 +543,133 @@ ggplot()+
   
   
 
-  
-tleoTimeToClick_All%>%filter(clickDestination!='clicksRemaining')%>%filter(perc == 0.399 | perc ==0.541)
+########## Time to click not TLEO ##################
+
+clickTimeAll<- 
+  originToDestination %>%
+  mutate(timeRange_sec = cut(clickTime_sec, 
+                             breaks = c(-1, 60,120,180,240, 300,360,420,480,540, 600,Inf),
+                             labels = c("0-1", "1-2", "2-3", "3-4", "4-5", "5-6", "6-7", "7-8", "8-9", "9-10", "10+"))) %>% 
+  group_by(nextEpClass, timeRange_sec) %>% 
+  summarize(numInRange=n()) %>%
+  mutate(perc = round(100*numInRange/sum(numInRange),1))%>%
+  left_join(nextEpClass, by = "nextEpClass") %>%
+  ungroup()%>%
+  select(clickDestination, timeRange_sec, perc)%>%
+  spread(key = clickDestination, value = perc)
+
+
+allDestinationTimeToClickPerc<-
+  originToDestination %>%
+  mutate(timeRange_sec = cut(clickTime_sec, 
+                             breaks = c(-1, 60,120,180,240, 300,360,420,480,540, 600,Inf),
+                             labels = c("0-1", "1-2", "2-3", "3-4", "4-5", "5-6", "6-7", "7-8", "8-9", "9-10", "10+"))) %>%
+  group_by(timeRange_sec,nextEpClass) %>% 
+  summarize(numInRange=n()) %>%
+  mutate(perc = round(numInRange/sum(numInRange),3))%>%
+  left_join(nextEpClass, by = "nextEpClass") %>%
+  ungroup()%>%
+  select(clickDestination,timeRange_sec, perc)
+
+allDestinationTimeToClickPerc$clickDestination<- factor(allDestinationTimeToClickPerc$clickDestination, 
+                                                         levels=  c("Same Brand & Series, Diff Ep",
+                                                                    "Same Brand & Series, Next Ep",
+                                                                    "Same Brand, Diff Series, Diff Ep",
+                                                                    "Same Brand, Diff Series, Next Ep",
+                                                                    "New Brand"))
+
+
+
+
+
+
+############# Create a DF to give the running total of people still on the content (i.e have not clicked away)
+allRunningTotal<-
+  originToDestination %>%
+  mutate(timeRange_sec = cut(clickTime_sec, 
+                             breaks = c(-1, 60,120,180,240, 300,360,420,480,540, 600,Inf),
+                             labels = c("0-1", "1-2", "2-3", "3-4", "4-5", "5-6", "6-7", "7-8", "8-9", "9-10", "10+"))) %>%
+  left_join(nextEpClass, by = "nextEpClass")%>%
+  group_by(timeRange_sec)%>%
+  summarise(numInRange =n()) %>%
+  mutate(totalInDest = sum(numInRange))%>%
+  mutate(runningTotal = cumsum(numInRange))%>%
+  mutate(totalRemaining = totalInDest - runningTotal)%>%
+  select(timeRange_sec,totalRemaining,totalInDest)
+
+allRunningTotal_initial<- allRunningTotal %>% 
+  filter(timeRange_sec == "0-1") %>%
+  select(timeRange_sec,totalInDest)
+allRunningTotal_initial<- allRunningTotal_initial%>%rename(totalRemaining = totalInDest)
+
+allRunningTotal$timeRange_sec<-recode(allRunningTotal$timeRange_sec,
+                                       "0-1" = "1-2",
+                                       "1-2" = "2-3",
+                                       "2-3" = "3-4",
+                                       "3-4" = "4-5",
+                                       "4-5" = "5-6",
+                                       "5-6" = "6-7",
+                                       "6-7" = "7-8",
+                                       "7-8" = "8-9",
+                                       "8-9" = "9-10",
+                                       "9-10" = "10+",
+                                       "10+" = "11+") 
+
+allRunningTotal<- allRunningTotal%>%select(-totalInDest)%>%filter(timeRange_sec!= "11+")
+allRunningTotal<-bind_rows(allRunningTotal,allRunningTotal_initial)
+
+
+allRunningTotal$timeRange_sec<- factor(allRunningTotal$timeRange_sec,
+                                        levels = c("0-1","1-2","2-3","3-4","4-5","5-6","6-7","7-8","8-9","9-10","10+"))
+
+
+allRunningTotal<- allRunningTotal%>%arrange(timeRange_sec) %>%
+  mutate(perc = round(totalRemaining/6350406,3))%>%
+  select(-totalRemaining)%>%
+  mutate(clickDestination = "clicksRemaining")
+allRunningTotal
+
+
+### Join together the % still on the content and the % making a click to different destinations
+allTimeToClick<- bind_rows(allDestinationTimeToClickPerc, allRunningTotal)
+allTimeToClick$clickDestination<- factor(allTimeToClick$clickDestination, 
+                                              levels=  c("Same Brand & Series, Diff Ep",
+                                                         "Same Brand & Series, Next Ep",
+                                                         "Same Brand, Diff Series, Diff Ep",
+                                                         "Same Brand, Diff Series, Next Ep",
+                                                         "New Brand",
+                                                         "clicksRemaining"))
+
+### plot to give line graph for % of clicks to different destinations each minute
+### and % of users still on content
+ggplot()+
+  geom_bar(data = allTimeToClick%>%filter(clickDestination=='clicksRemaining'), 
+           aes(x = timeRange_sec, y = perc),
+           stat = "identity",
+           fill = "#043570",
+           alpha = 0.2)+
+  geom_point(data = allTimeToClick%>%filter(clickDestination!='clicksRemaining'), 
+             aes(x = timeRange_sec, y = perc, colour = clickDestination, group = clickDestination))+
+  geom_line(data = allTimeToClick%>%filter(clickDestination!='clicksRemaining'),
+            aes(x = timeRange_sec, y = perc, colour = clickDestination, group = clickDestination))+
+  scale_y_continuous(limits = c(0,1.05), breaks = c(0,0.1,0.2,0.3, 0.4,0.5,0.6,0.7,0.8,0.9,1.0), 
+                     labels = percent_format())+
+  scale_colour_manual(name = "Click Destination", values=(wes_palette(n=5, name="Zissou1")))+
+  ylab("Percentage of Clicks to Each Destination")+
+  xlab("Time Since Content Start (mins)")+
+  ggtitle("Click Destination From all Origins \n PS_IPLAYER - Big Screen - 2020-01-15 to 2020-01-29")+
+  geom_label(aes(label = "Percentage of Users Remaining"),
+             colour="black",
+             x = 1.75, y =1.02,
+             fill = "#043570",
+             alpha = 0.2
+  )+
+  geom_text(data = allTimeToClick%>%filter(clickDestination!='clicksRemaining')%>%filter(perc == 0.388),
+            aes(label=paste0(sprintf("%1.f", 100*perc),"%")),
+            x = 11.2, y =0.42,
+            colour="black")+
+  geom_text(data = allTimeToClick%>%filter(clickDestination!='clicksRemaining')%>%filter(perc == 0.338),
+            aes(label=paste0(sprintf("%1.f", 100*perc),"%")),
+            x = 11.2, y =0.31,
+            colour="black")
+
