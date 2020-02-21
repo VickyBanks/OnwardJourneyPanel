@@ -543,7 +543,7 @@ ggplot()+
   
   
 
-########## Time to click not TLEO ##################
+########## Time to click all origins ##################
 
 clickTimeAll<- 
   originToDestination %>%
