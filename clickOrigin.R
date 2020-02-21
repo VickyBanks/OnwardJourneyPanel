@@ -335,11 +335,18 @@ by = "placement") %>%
 
 percContentWithClicks
 
+allClicksPerc<-
+  allClickOrigins %>%
+  group_by(placement) %>%
+  summarise(numAllClicks = sum(num_content_clicks))%>%
+  mutate(percFromPage = round(numAllClicks/sum(numAllClicks),4))%>%
+  select(-numAllClicks)%>%
+  mutate(perc = 1, clickGroup = "navClickGroup")
 
 ### Stacked Bar graph to show how people move from one episode page to another
 ggplot(data = percContentWithClicks, aes(x = placement, y = perc, fill = clickGroup)) +
   geom_bar(stat= "identity", position = "fill", width=1, color="black")+
-  scale_y_continuous(limits = c(0,1), labels=percent_format(),
+  scale_y_continuous(limits = c(0,1.1), labels=percent_format(),
                      breaks = c(0.0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,0.95,1.0))+
   geom_hline(yintercept = 0.95, linetype = "dashed", color = "white")+
   geom_label(data=subset(percContentWithClicks, perc > 0.5),
@@ -347,12 +354,21 @@ ggplot(data = percContentWithClicks, aes(x = placement, y = perc, fill = clickGr
                 fill = NULL),
             position = position_stack(vjust = 0.5),
             colour="black")+
+  geom_label(data=allClicksPerc,
+             aes(label=paste0(sprintf("%1.f", 100*percFromPage),"%"),
+                 fill = NULL),
+             position = position_stack(vjust = 1.05),
+             colour="black")+
+  geom_label(aes(label= "Proportion of Clicks from Each Origin",
+                 fill = NULL),
+             y = 1.1, x =1.1 ,
+             colour="black")+
   ylab("Percentage of Content Clicks")+
   scale_x_discrete(name = "Origin")+
   ggtitle("Proportion of Content Views with a Navigation Click \n PS_IPLAYER - Big Screen - 2020-01-15 to 2020-01-29")+
-  scale_fill_manual(values =c("#043570","#037301"))+
+  scale_fill_manual(name = "Click Group", labels = c("Nav Clicks","No Nav Click"),values =c("#043570","#037301"))+
   theme(legend.position="bottom", legend.box = "horizontal")+
-  guides(fill = "none") #this removed the legend for scale_fill_manual
+  guides(fill = guide_legend(override.aes = aes(label = "")))#removed the 'a' from the legend
 
 
 
