@@ -308,3 +308,133 @@ ggplot(data = homepageComparison %>% filter(container == 'module-watching-contin
   theme(legend.position="bottom", legend.box = "horizontal")+
   guides(fill = "none") #this removed the legend for scale_fill_manual
 
+
+
+
+
+#######################
+
+head(allClickOrigins)
+head(navClickOrigins)
+
+percContentWithClicks<-
+left_join(navClickOrigins %>% 
+  group_by(content_click_placement) %>%
+  summarise(numNavClicks = n()) %>%
+  rename(placement=content_click_placement),
+allClickOrigins %>%
+  group_by(placement) %>%
+  summarise(numAllClicks = sum(num_content_clicks)), 
+by = "placement") %>%
+  mutate(noNavClicks = numAllClicks - numNavClicks)%>%
+  mutate(navClickPerc = round(numNavClicks/numAllClicks,3),
+         noNavClickPerc = round(noNavClicks/numAllClicks,3)
+         ) %>%
+  select(placement,navClickPerc, noNavClickPerc)%>%
+  gather(key = clickGroup, value = perc, navClickPerc, noNavClickPerc)
+
+percContentWithClicks
+
+
+### Stacked Bar graph to show how people move from one episode page to another
+ggplot(data = percContentWithClicks, aes(x = placement, y = perc, fill = clickGroup)) +
+  geom_bar(stat= "identity", position = "fill", width=1, color="black")+
+  scale_y_continuous(limits = c(0,1), labels=percent_format(),
+                     breaks = c(0.0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,0.95,1.0))+
+  geom_hline(yintercept = 0.95, linetype = "dashed", color = "white")+
+  geom_label(data=subset(percContentWithClicks, perc > 0.5),
+            aes(label=paste0(sprintf("%1.f", 100*perc),"%"),
+                fill = NULL),
+            position = position_stack(vjust = 0.5),
+            colour="black")+
+  ylab("Percentage of Content Clicks")+
+  scale_x_discrete(name = "Origin")+
+  ggtitle("Proportion of Content Views with a Navigation Click \n PS_IPLAYER - Big Screen - 2020-01-15 to 2020-01-29")+
+  scale_fill_manual(values =c("#043570","#037301"))+
+  theme(legend.position="bottom", legend.box = "horizontal")+
+  guides(fill = "none") #this removed the legend for scale_fill_manual
+
+
+
+##### Just for home page
+fancyContainerName<- read.csv("fancyContainerName.csv", header = TRUE)
+
+percContentWithClicks_homepage<-
+left_join( navClickOrigins %>% filter(content_click_placement == 'homepage' & 
+                                        !str_detect(content_click_container, "u16|u13"))%>%
+             group_by(content_click_placement,content_click_container) %>%
+             summarise(numNavClicks = n()) %>%
+             rename( "placement"=content_click_placement)%>%
+             rename("container" = content_click_container),
+           allClickOrigins %>% filter(placement == 'homepage' & 
+                                        !str_detect(simple_container_name, "u16|u13"))%>%
+             group_by(placement,simple_container_name) %>%
+             summarise(numAllClicks = sum(num_content_clicks))%>%
+             rename("container" = simple_container_name)%>%
+             ungroup()%>%
+             select(-placement),
+           by = "container")%>%
+  arrange(desc(numAllClicks))%>%
+  filter(container != 'module-event-01-the-fa-cup')%>%
+    top_n(n=5,wt = numAllClicks) %>%
+  left_join(fancyContainerName) %>%
+  select(-container)%>%
+  rename("container" = fancy_container_name)%>%
+  mutate(noNavClicks = numAllClicks - numNavClicks)%>%
+  mutate(navClickPerc = round(numNavClicks/numAllClicks,3),
+         noNavClickPerc = round(noNavClicks/numAllClicks,3)) %>%
+  select(placement,container,navClickPerc, noNavClickPerc)%>%
+  gather(key = clickGroup, value = perc, navClickPerc, noNavClickPerc)
+
+homepagePerc<-
+allClickOrigins %>% filter(placement == 'homepage' & 
+                             !str_detect(simple_container_name, "u16|u13"))%>%
+  group_by(placement,simple_container_name) %>%
+  summarise(numAllClicks = sum(num_content_clicks))%>%
+  mutate(percFromHomepage = round(numAllClicks/sum(numAllClicks),4))%>%
+  rename("container" = simple_container_name)%>%
+  filter(container != 'module-event-01-the-fa-cup')%>%
+  top_n(n=5,wt = numAllClicks) %>%
+  left_join(fancyContainerName) %>%
+  select(-container)%>%
+  rename("container" = fancy_container_name)%>%
+  select(-numAllClicks)%>%
+  mutate(perc = 1, clickGroup = "navClickGroup")
+
+percContentWithClicks_homepage$container<-factor(percContentWithClicks_homepage$container, 
+                                                 levels = c('continue watching',
+                                                            'editorial featured',
+                                                            'most popular',
+                                                            'if you liked',
+                                                            'recommended for you') )
+
+ggplot(data = percContentWithClicks_homepage, aes(x = container, y = perc, fill = clickGroup)) +
+  geom_bar(stat= "identity", position = "fill", width=1, color="black")+
+  scale_y_continuous(limits = c(0,1.1), labels=percent_format(),
+                     breaks = c(0.0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,0.95,1.0))+
+  geom_hline(yintercept = 0.95, linetype = "dashed", color = "white")+
+  geom_label(data=subset(percContentWithClicks_homepage, perc > 0.5),
+             aes(label=paste0(sprintf("%1.f", 100*perc),"%"),
+                 fill = NULL),
+             position = position_stack(vjust = 0.5),
+             colour="black")+
+  geom_label(data=homepagePerc,
+             aes(label=paste0(sprintf("%1.f", 100*percFromHomepage),"%"),
+                 fill = NULL,
+                 group = container),
+             position = position_stack(vjust = 1.05),
+             colour="black")+
+  geom_label(aes(label= "Proportion of Homepage Clicks from Origin",
+                 fill = NULL),
+             y = 1.1, x =1.1 ,
+             colour="black")+
+  ylab("Percentage of Content Clicks")+
+  scale_x_discrete(name = "Origin Within Homepage")+
+  ggtitle("Proportion of Content Views with a Navigation Click - Homepage \n PS_IPLAYER - Big Screen - 2020-01-15 to 2020-01-29")+
+  scale_fill_manual(name = "Click Group", labels = c("Nav Clicks","No Nav Click"),values =c("#043570","#037301"))+
+  theme(legend.position="bottom", legend.box = "horizontal")+
+  facet_wrap(~ placement, nrow = 1, strip.position = "top")+
+  guides(fill = guide_legend(override.aes = aes(label = "")))#removed the 'a' from the legend
+
+
+
