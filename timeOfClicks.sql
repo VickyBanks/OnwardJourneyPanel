@@ -14,18 +14,17 @@ SELECT DISTINCT dt,
 FROM s3_audience.publisher
 WHERE (attribute LIKE '%page-section-related~select%' OR attribute LIKE '%page-section-rec~select%')
   AND metadata LIKE '%iplayer::bigscreen-html%'
-  AND dt >= 20191101
-  AND dt <= 20191114
+  AND dt >= 20200115
+  AND dt <= 20200129
 ORDER BY unique_visitor_cookie_id, visit_id, event_position;
 
-
+SELECT attribute, count(visit_id) FROM vb_tv_nav_select GROUP BY attribute; --num visits with a click
 
 SELECT *
 FROM vb_tv_nav_select
 LIMIT 5;
 
 -- How many visits did not click this panel?
-
 SELECT nav_click, count(*)
 FROM (SELECT DISTINCT a.dt,
                       a.unique_visitor_cookie_id,
@@ -40,13 +39,14 @@ FROM (SELECT DISTINCT a.dt,
                                                       a.unique_visitor_cookie_id = b.unique_visitor_cookie_id AND
                                                       a.visit_id = b.visit_id
       WHERE metadata LIKE '%iplayer::bigscreen-html%'
-        AND a.dt >= 20191101
-        AND a.dt <= 20191114)
+        AND a.dt >= 20200115
+        AND a.dt <= 20200129)
 GROUP BY nav_click;
 
--- with click =  4,813,675 = 10%
--- no click   = 41,679,487 = 90%
+-- with click =  4,065,977 = 8.5%
+-- no click   = 43,824,893 = 91.5%
 SELECT * FROM vb_tv_nav_next_ep_summary LIMIT 5;
+
 -- Get all events for those users who click the onward journey panel.
 DROP TABLE IF EXISTS vb_tv_nav;
 CREATE TABLE vb_tv_nav AS
@@ -96,11 +96,6 @@ FROM vb_tv_nav_num
 ORDER BY unique_visitor_cookie_id, visit_id, event_position;
 
 
-SELECT *
-FROM vb_tv_nav_new_content_flag
-WHERE visit_id = 10294884
-ORDER BY unique_visitor_cookie_id, visit_id, event_position;
-
 -- Select the rows where new content is flagged and the rows where the click event is given
 -- Add in the time of the previous event as a new column to be used for calculations
 DROP TABLE IF EXISTS vb_tv_nav_key_events;
@@ -125,10 +120,6 @@ FROM (
          ORDER BY unique_visitor_cookie_id, visit_id, event_position)
 ORDER BY dt, unique_visitor_cookie_id, visit_id, event_position;
 
-SELECT *
-FROM vb_tv_nav_key_events
-ORDER BY unique_visitor_cookie_id, visit_id, event_position
-LIMIT 5;
 
 --DATEDIFF(date , event_start_datetime, previous_event_start_datetime) AS test,
 --to_timestamp(event_start_datetime - previous_event_start_datetime, 'YYYY-MM-DD HH24:MI:SS') at time zone 'Etc/UTC' AS time_since_content_start
@@ -157,8 +148,8 @@ FROM vb_tv_nav_time_to_click
 GROUP BY menu_type;
 
 -- menu_type, count visits
--- related-select = 6,559,953
--- rec-select     =   855,106
+-- related-select = 5,396,564
+-- rec-select     =   942,392
 
 
 -- Data to go into R script
@@ -281,6 +272,7 @@ SELECT a.dt,
        a.unique_visitor_cookie_id,
        a.time_since_content_start_sec,
        a.visit_id,
+       b.event_position AS nav_select_event_position,
        a.menu_type,
        c.brand_id         AS current_brand_id,
        c.brand_title      AS current_brand_title,
@@ -307,10 +299,6 @@ FROM vb_tv_nav_time_to_click a
          JOIN vb_vmb_subset d ON b.next_ep_id = d.episode_id
 ;
 
-SELECT *
-FROM vb_tv_nav_next_ep_full_info
-limit 5;
-
 
 -- Identify if people have clicked onto content of the same brand, same brand & same series, next episode of content or unrelated content.
 DROP TABLE IF EXISTS vb_tv_nav_next_ep_summary;
@@ -318,6 +306,7 @@ CREATE TABLE vb_tv_nav_next_ep_summary AS
 SELECT dt,
        unique_visitor_cookie_id,
        visit_id,
+       nav_select_event_position,
        menu_type,
        time_since_content_start_sec,
        CASE
@@ -332,11 +321,13 @@ SELECT dt,
            WHEN current_brand_id = next_brand_id AND current_series_id != next_series_id AND current_running_ep_count + 1 = next_running_ep_count THEN 1 -- same brand not series but next episode (i.e last ep of one series, first of next series)
            ELSE 0 END AS next_ep
 FROM vb_tv_nav_next_ep_full_info
-ORDER BY dt, visit_id;
+ORDER BY dt,
+       unique_visitor_cookie_id,
+       visit_id,
+       nav_select_event_position;
 
 -- data to send out to R
 SELECT * FROM vb_tv_nav_next_ep_summary;
-
 
 --Checks
 /*SELECT *
@@ -380,17 +371,27 @@ SELECT DISTINCT brand_id,
                 series_id,
                 series_title,
                 episode_id,
-                episode_title,
-                clip_id,
-                clip_title
+                episode_title
 FROM prez.scv_vmb
-WHERE --brand_id = 'p07ptd54'
-      --OR series_id = 'p07ptd54'
-      --or
-      episode_id = 'b007cldz'
---OR clip_id = 'p07ptd54'
+WHERE brand_id = 'p03yfn89'
+   OR series_id = 'p03yfn89'
+   or episode_id = 'p03yfn89'
+   OR clip_id = 'p03yfn89';
 ;
 
+--[iplayer.tv.tleo.top_gear.b006mj59.page]
+SELECT DISTINCT brand_id,
+                brand_title,
+                series_id,
+                series_title,
+                episode_id,
+                episode_title
+FROM vb_vmb_subset
+WHERE --brand_id = 'm000by3f'
+   --OR series_id = 'm000by3f'
+   --or
+      episode_id = 'm000c61r';
+;
 
 -- WHEN left(right(placement, 13), 8) LIKE 'yer.load' THEN NULL
 -- WHEN left(right(placement, 13), 8) LIKE 'witching' THEN NULL
