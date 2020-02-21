@@ -49,14 +49,16 @@ theme_update(plot.caption = element_text(size=6))
 ```
 
 # Overview
-The project was looking at the onward naviagtion bar on iPlayer big screen that users access during playback of content. The menu consists of two parts: related content from the same brand, or recomendations of programs regarded as similar to this brand. A click to this menu takes users directly to another piece of content.
+The project was looking at the onward navigation bar on iPlayer big screen that users access during playback of content. The menu consists of two parts: related content from the same brand, or recommendations of programs regarded as similar to this brand. A click to this menu takes users directly to another piece of content.
 
-The time period analysed was 2020-01-15 to 2020-01-29 and all visits to big screen where the navigation bar was click were included. During this time there were 4,065,977 (~8.5%) visits containing at least one click and 43,824,893 (~91.5%) without a click. The click was identified by the labels 'page-section-related~select' and 'page-section-rec~select' in the attribute field of the s3_audience.publosher table in SCV. Of all clicks identified 15% were to the recommended section and 85% to the related section.
+The time period analysed was 2020-01-15 to 2020-01-29 and all visits to big screen where the navigation bar was click were included. During this time there were 4,065,977 (~8.5%) visits containing at least one click and 43,824,893 (~91.5%) without a click. The click was identified by the labels 'page-section-related~select' and 'page-section-rec~select' in the attribute field of the s3_audience.publisher table in SCV. Of all clicks identified 15% were to the recommended section and 85% to the related section.
+
 
 ## Hypotheses
-1. The majority of users interact with the onward journey panel within the first minute of content. 
+1. The majority of users interact with the onward journey panel within the first minute of content.
     1b. Users do not interact with the panel a second time during the viewing session.
-2. Users playing content via a TLEO page do not use the onward journey panel as often as users with a different origin, and the usage of the panel differs depening on origin.
+2. Users playing content via a TLEO page do not use the onward journey panel as often as users with a different origin, and the usage of the panel differs depending on origin.
+
 
 
 ## Quantities to Investigate
@@ -65,16 +67,19 @@ The time period analysed was 2020-01-15 to 2020-01-29 and all visits to big scre
 2. If the origin of a user's content viewing affected their behaviour in using the onward journey navigation bar. In particular the homepage (specifically the continue watching module), TLEO pages, and deep links. Additionally, viewing originating from an episode page, to be able to assess hypothesis 1b. 
 
 
+<br>
+<br>
 
 # Content Origins and Destinations
 ## Click Destination
 
-The hypothesis suggested that users were clicking the navigation bar as a shortcut to find their desired content. To investigate this their intial content was compares to the content they selected from the onward journey nav. Content was split into several categories: content of a different brand entirely, content of the same brand and same series, within this if it was the next episode or not, and content of the same brand but another series again within this splitting into if content was the next episode (i.e first of a new series) or not.
+The hypothesis suggested that users were clicking the navigation bar as a shortcut to find their desired content. To investigate this their initial content was compares to the content they selected from the onward journey nav. Content was split into several categories: content of a different brand entirely, content of the same brand and same series, within this if it was the next episode or not, and content of the same brand but another series again within this splitting into if content was the next episode (i.e. first of a new series) or not.
 
-To do this, each record had the brand and series IDs associated with the content ID determined using the prez.scv_vmb table and the numerical position of the episode within a series identified using the central_insights_sandbox.episode_numbers table. Content was then grouped by brand and ordered by series to number all episodes in sequence to allow the journey from the final episode of one series to the first of the next to be identified as the 'next episode' along with the next episode within a series. Multiple verison of series (i.e standard content comapred to a 30 minute cutdown) were defined as distict from one another. 
+To do this, each record had the brand and series IDs associated with the content ID determined using the prez.scv_vmb table and the numerical position of the episode within a series identified using the central_insights_sandbox.episode_numbers table. Content was then grouped by brand and ordered by series to number all episodes in sequence to allow the journey from the final episode of one series to the first of the next to be identified as the 'next episode' along with the next episode within a series. Multiple version of series (i.e. standard content compared to a 30-minute cutdown) were defined as distinct from one another. 
 
 
-The journey from the intial content to the destination content is shown below.
+The journey from the initial content to the destination content is shown below.
+
 
 ```{r clickDestinationSankey, echo = FALSE}
 nextEpInfo <- read.csv("next_ep_type_Jan2020.csv", header = TRUE)
@@ -124,7 +129,7 @@ allClicksSankey
 
 ```
 
-From this it can be seen that 91% of journeys continued onto another episode in the same brand, 23% of those to the next episode, 51% to another episode in the series and 16% moved to another series where the new content was not the user's next episode. This very much indicated that users are using this menu to move between episodes of a single brand, with very few users using this as a place for descovering new content.
+From this it can be seen that 91% of journeys continued onto another episode in the same brand, 23% of those to the next episode, 51% to another episode in the series and 16% moved to another series where the new content was not the user's next episode. This very much indicated that users are using this menu to move between episodes of a single brand, with very few users using this as a place for discovering new content.
 
 
 
@@ -187,10 +192,11 @@ clickPlacementComparison <- bind_rows(
 ```
 
 
-For each piece of content being viewed when the onward journey navigation was clicked, the origin of the content was found. This was the page where the click to reach content occurred, for example the homepage, a channel page or a TLEO page. Content currently being viewed could also be the origin for another piece of content; in these examples the content origin was classified as as 'episode' page. Deep links into product were also a source. It is worth noting that homepage clicks are only those that take users directly into content, such as the continue watching rail, many click on the homepage would take users to a TLEO from which they select content. 
+For each piece of content being viewed when the onward journey navigation was clicked, the origin of the content was found. This was the page where the click to reach content occurred, for example the homepage, a channel page or a TLEO page. Content currently being viewed could also be the origin for another piece of content; in these examples the content origin was classified as 'episode' page. Deep links into product were also a source. It is worth noting that homepage clicks are only those that take users directly into content, such as the continue watching rail, many click on the homepage would take users to a TLEO from which they select content. 
 
 ### Content Origin Identification
-Users complete many clicks to content within their visits so in order to identify the content click that took users to the content being viewed when the navigation bar was clicked three levels of check were completed. Firstly the ID of the content click was matched with the ID of the content being viewed. Secondly,if the ID check was not possible, the master brand of the content click was matched with the masterbrand of the content being viewed. Finally, if the first two were not possible, the content click directly before the navigation click was used. The table below shows the propotion clicks from each origin validated with each type of check.
+Users complete many clicks to content within their visits so in order to identify the content click that took users to the content being viewed when the navigation bar was clicked three levels of check were completed. Firstly, the ID of the content click was matched with the ID of the content being viewed. Secondly, if the ID check was not possible, the master brand of the content click was matched with the Masterbrand of the content being viewed. Finally, if the first two were not possible, the content click directly before the navigation click was used. The table below shows the proportion clicks from each origin validated with each type of check.
+
 
 ```{r checkTypeTable, echo = FALSE}
 
@@ -223,6 +229,7 @@ navClickOrigins %>%group_by(content_click_placement,check_type)%>%
 ### Origin Breakdown
 
 The percentage of clicks to content for all users, and just those who go on to use the navigation bar is shown below. As mentioned previously, 8.5% of all visits contained at least one onward journey navigation click whilst 91.5% did not.
+<br>
 
 ```{r contentOriginsGraph, echo=FALSE, fig.height = 7, fig.width = 10}
 ## Plot data
@@ -246,10 +253,72 @@ ggplot(clickPlacementComparison, aes(x = clickGroup, y = perc, fill = clickGroup
         axis.ticks.x=element_blank())
 ```
 
+<br>
 
-Hypothesis 1b suggested that user's do not interact with the navigation bar a second time during a session. Here it is seen that in 33% of cases where the navigation bar was clicked, users came from another piece of content; this may however be through the navigation bar or through autoplay.
+Hypothesis 1b suggested that user's do not interact with the navigation bar a second time during a session. Here it is seen that in 33% of cases where the navigation bar was clicked, users came from another piece of content; this may however be through the navigation bar or through auto play.
 
-One quantity to investigate was if the origin affected using the navigation bar. These intial results show that user's clicking the navigation bar are far less likely to have come from another piece of content or a TLEO page, and more likely to have come from the homepage, channels or categories page. They were slightly less likely to have come from a deeplink.
+One quantity to investigated was if the origin affected using the navigation bar. These initial results show that user's clicking the navigation bar are far less likely to have come from another piece of content or a TLEO page, and more likely to have come from the homepage, channels or categories page. They were slightly less likely to have come from a deeplink.
+
+
+
+The number of pieces of content from each origin page was counted, and the proportion of those that had a navigation bar click was identified. Hypothesis two proposed that users from the TLEO page do not use the navigation as frequently as those from other origins. The graph below shows that although this is the case, and the hypothesis is supported, the difference is not particularly large. From a TLEO page, 4% of users select the navigation whereas the value is slightly larger at 7% for homepage, but the same at 4% for users from another episode. Deep links appear to be the most successful with only 3% of users selecting the navigation bar.
+
+<br>
+
+```{r proportionOfContentWithNavClick, echo = FALSE, fig.height = 7, fig.width = 10}
+percContentWithClicks<-
+left_join(navClickOrigins %>% 
+  group_by(content_click_placement) %>%
+  summarise(numNavClicks = n()) %>%
+  rename(placement=content_click_placement),
+allClickOrigins %>%
+  group_by(placement) %>%
+  summarise(numAllClicks = sum(num_content_clicks)), 
+by = "placement") %>%
+  mutate(noNavClicks = numAllClicks - numNavClicks)%>%
+  mutate(navClickPerc = round(numNavClicks/numAllClicks,3),
+         noNavClickPerc = round(noNavClicks/numAllClicks,3)
+         ) %>%
+  select(placement,navClickPerc, noNavClickPerc)%>%
+  gather(key = clickGroup, value = perc, navClickPerc, noNavClickPerc)
+
+
+allClicksPerc<-
+  allClickOrigins %>%
+  group_by(placement) %>%
+  summarise(numAllClicks = sum(num_content_clicks))%>%
+  mutate(percFromPage = round(numAllClicks/sum(numAllClicks),4))%>%
+  select(-numAllClicks)%>%
+  mutate(perc = 1, clickGroup = "navClickGroup")
+
+### Stacked Bar graph to show how people move from one episode page to another
+ggplot(data = percContentWithClicks, aes(x = placement, y = perc, fill = clickGroup)) +
+  geom_bar(stat= "identity", position = "fill", width=1, color="black")+
+  scale_y_continuous(limits = c(0,1.1), labels=percent_format(),
+                     breaks = c(0.0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,0.95,1.0))+
+  geom_hline(yintercept = 0.95, linetype = "dashed", color = "white")+
+  geom_label(data=subset(percContentWithClicks, perc > 0.5),
+            aes(label=paste0(sprintf("%1.f", 100*perc),"%"),
+                fill = NULL),
+            position = position_stack(vjust = 0.5),
+            colour="black")+
+  geom_label(data=allClicksPerc,
+             aes(label=paste0(sprintf("%1.f", 100*percFromPage),"%")),
+             fill = "grey",alpha = 0.7,
+             position = position_stack(vjust = 1.05),
+             colour="black")+
+  geom_label(aes(label= "Proportion of Clicks from Each Origin"),
+             fill = "grey",alpha = 0.1,
+             y = 1.1, x =1.6 ,
+             colour="black")+
+  ylab("Percentage of Content Clicks")+
+  scale_x_discrete(name = "Origin")+
+  ggtitle("Proportion of Content Views with a Navigation Click \n PS_IPLAYER - Big Screen - 2020-01-15 to 2020-01-29")+
+  scale_fill_manual(name = "Click Group", labels = c("Nav Clicks","No Nav Click"),values =c("#043570","#037301"))+
+  theme(legend.position="bottom", legend.box = "horizontal")+
+  guides(fill = guide_legend(override.aes = aes(label = "")))#removed the 'a' from the legend
+
+```
 
 
 ### Homepage
@@ -296,14 +365,102 @@ add_header_above(header = c(" " = 2, "Percentage of Clicks" = 2))
 ```
 
 
+Breaking this down further, thecontent originating from the top 5 most popular homepage modules was looked at to see if the origin affected the proportion of navigation clicks. In line with the hypothesis, the continue watching rail had the largest number of navigation clicks at 9%, as per the hypothesis, but the 'recommended for you' section also had 9%.
+
+<br>
+
+```{r homepageOriginPercentage, echo = FALSE, fig.height = 7, fig.width = 10}
+
+fancyContainerName<- read.csv("fancyContainerName.csv", header = TRUE)
+
+percContentWithClicks_homepage<-
+left_join( navClickOrigins %>% filter(content_click_placement == 'homepage' & 
+                                        !str_detect(content_click_container, "u16|u13"))%>%
+             group_by(content_click_placement,content_click_container) %>%
+             summarise(numNavClicks = n()) %>%
+             rename( "placement"=content_click_placement)%>%
+             rename("container" = content_click_container),
+           allClickOrigins %>% filter(placement == 'homepage' & 
+                                        !str_detect(simple_container_name, "u16|u13"))%>%
+             group_by(placement,simple_container_name) %>%
+             summarise(numAllClicks = sum(num_content_clicks))%>%
+             rename("container" = simple_container_name)%>%
+             ungroup()%>%
+             select(-placement),
+           by = "container")%>%
+  arrange(desc(numAllClicks))%>%
+  filter(container != 'module-event-01-the-fa-cup')%>%
+    top_n(n=5,wt = numAllClicks) %>%
+  left_join(fancyContainerName) %>%
+  select(-container)%>%
+  rename("container" = fancy_container_name)%>%
+  mutate(noNavClicks = numAllClicks - numNavClicks)%>%
+  mutate(navClickPerc = round(numNavClicks/numAllClicks,3),
+         noNavClickPerc = round(noNavClicks/numAllClicks,3)) %>%
+  select(placement,container,navClickPerc, noNavClickPerc)%>%
+  gather(key = clickGroup, value = perc, navClickPerc, noNavClickPerc)
+
+homepagePerc<-
+allClickOrigins %>% filter(placement == 'homepage' & 
+                             !str_detect(simple_container_name, "u16|u13"))%>%
+  group_by(placement,simple_container_name) %>%
+  summarise(numAllClicks = sum(num_content_clicks))%>%
+  mutate(percFromHomepage = round(numAllClicks/sum(numAllClicks),4))%>%
+  rename("container" = simple_container_name)%>%
+  filter(container != 'module-event-01-the-fa-cup')%>%
+  top_n(n=5,wt = numAllClicks) %>%
+  left_join(fancyContainerName) %>%
+  select(-container)%>%
+  rename("container" = fancy_container_name)%>%
+  select(-numAllClicks)%>%
+  mutate(perc = 1, clickGroup = "navClickGroup")
+
+percContentWithClicks_homepage$container<-factor(percContentWithClicks_homepage$container, 
+                                                 levels = c('continue watching',
+                                                            'editorial featured',
+                                                            'most popular',
+                                                            'if you liked',
+                                                            'recommended for you') )
+
+ggplot(data = percContentWithClicks_homepage, aes(x = container, y = perc, fill = clickGroup)) +
+  geom_bar(stat= "identity", position = "fill", width=1, color="black")+
+  scale_y_continuous(limits = c(0,1.1), labels=percent_format(),
+                     breaks = c(0.0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,0.95,1.0))+
+  geom_hline(yintercept = 0.95, linetype = "dashed", color = "white")+
+  geom_label(data=subset(percContentWithClicks_homepage, perc > 0.5),
+             aes(label=paste0(sprintf("%1.f", 100*perc),"%"),
+                 fill = NULL),
+             position = position_stack(vjust = 0.5),
+             colour="black")+
+  geom_label(data=homepagePerc,
+             aes(label=paste0(sprintf("%1.f", 100*percFromHomepage),"%"),
+                 group = container),
+             fill = "grey",alpha = 0.7,
+             position = position_stack(vjust = 1.05),
+             colour="black")+
+  geom_label(aes(label= "Proportion of Homepage Clicks from Origin"),
+                 fill = "grey",alpha = 0.1,
+             y = 1.1, x =1.3 ,
+             colour="black")+
+  ylab("Percentage of Content Clicks")+
+  scale_x_discrete(name = "Origin Within Homepage")+
+  ggtitle("Proportion of Content Views with a Navigation Click - Homepage \n PS_IPLAYER - Big Screen - 2020-01-15 to 2020-01-29")+
+  scale_fill_manual(name = "Click Group", labels = c("Nav Clicks","No Nav Click"),values =c("#043570","#037301"))+
+  theme(legend.position="bottom", legend.box = "horizontal")+
+  facet_wrap(~ placement, nrow = 1, strip.position = "top")+
+  guides(fill = guide_legend(override.aes = aes(label = "")))#removed the 'a' from the legend
+
+
+```
+
+<br>
 
 ### Episode Pages
 
-For the journey from one episode to a second, in 14% of all journeys this was due to a purposeful click to the navigation bar. However, if the user went onto click the navigation bar on the second piece of content this value is far higher at 65% of cases. As 52% of clicks originating from an episode page occur within the first minute of viewing (see time to click section), it is highly likely that these users do not view much content before clicking the navigaion bar. So the hypothesis that user's do not click the navigation bar multiple times in a viewing session is not wholy correct.
+For the journey from one episode to a second, in 14% of all journeys this was due to a purposeful click to the navigation bar. However, if the user went onto click the navigation bar on the second piece of content this value is far higher at 65% of cases. As 52% of clicks originating from an episode page occur within the first minute of viewing (see time to click section), it is highly likely that these users do not view much content before clicking the navigation bar. So the hypothesis that user's do not click the navigation bar multiple times in a viewing session is not wholly correct.
 
 
-
-```{r episodeOriginsGraph, echo = FALSE, fig.width = 10}
+```{r episodeOriginsGraph, echo = FALSE, fig.height = 7,fig.width = 10}
 ### How are users from an episode page getting to the next content
 #Join the all clicks content and the anv clicks content origin summaires
 episodeOrigins<- left_join(
@@ -350,12 +507,13 @@ ggplot(episodeOrigins, aes(x = clickGroup, y = perc, fill = clickGroup)) +
             colour="black")+
   facet_wrap(~ container, nrow = 1, strip.position = "bottom")+
   theme(axis.text.x=element_blank(),
-        axis.ticks.x=element_blank())
+        axis.ticks.x=element_blank())+
+   theme(legend.position="bottom", legend.box = "horizontal")
 ```
 
+<br>
 
-
-Additionally, for each visit, the number of clicks to the navigation bar was counted. The percentage of visits containing each number of clicks was determined and shows that, although the majority of visits contain only one click, many contain more than one. However, this is not nescessarily users navigating directly through multiple pieces of content using the onward journey bar, they may take routes back though other pages. 
+Additionally, for each visit, the number of clicks to the navigation bar was counted. The percentage of visits containing each number of clicks was determined and shows that, although the majority of visits contain only one click, many contain more than one. However, this is not necessarily users navigating directly through multiple pieces of content using the onward journey bar, they may take routes back though other pages.
 
 
 
@@ -380,9 +538,10 @@ kable(multipleNavClicks %>% select(-numUsers),
 
 ```
 
-## Full Journeys
-For a piece of content being viewed the origin of the click to the content was joined to the user's destination once clicking the onward journey navigation bar.The flow of these journeys is shown below.
 
+
+## Full Journeys
+For a piece of content being viewed the origin of the click to the content was joined to the user's destination once clicking the onward journey navigation bar. The flow of these journeys is shown below.
 
 ```{r fullJourneySankey, echo = FALSE}
 
@@ -544,9 +703,11 @@ htmlwidgets::onRender(sankeyJourney, jsCode =
 
 ```
 
+<br>
 
 For a more detailed look at the difference in navigation usage (depending on the user's route to the content), the destination of the navigation bar usage is shown for each origin. 
 
+<br>
 
 ```{r originToDestination, echo = FALSE, fig.height = 15, fig.width = 10}
 
@@ -609,7 +770,7 @@ ggplot(data = originToDestinationSummary2,
   scale_fill_manual(name = "Click Destination", values=(wes_palette(n=5, name="Zissou1")))+
   xlab("")+
   theme_classic() +
-  facet_wrap(~ content_click_placement, ncol = 2, nrow = 4, scales = "fixed") +
+  facet_wrap(~ content_click_placement, ncol = 2, nrow = 4, scales = "free") +
   theme(legend.position = "bottom",
         legend.box = "horizontal", 
         axis.title.x=element_blank(),
@@ -618,29 +779,32 @@ ggplot(data = originToDestinationSummary2,
   guides(fill = guide_legend(override.aes = aes(label = ""), nrow = 3,byrow = TRUE ))
 ```
 
-Hypothesis two suggested that usage of the navigation bar would differ depending on the origin of the content being viewed. In the most general sense behaviour is quite similar as the majority of navigation usage takes users to another epsiode of the same brand and series, and very little usage takes users to a completely new brand. However there are some variations in behaviour.
+<br>
 
-Users coming from another episode are far more likely to move onto another brand than users from any other location. This seems quite unusual behaviour as users could not be sure that the brand they wanted would be shown on the navigation bar. At 17% this is also quite a bit higher than the 5% who's origin was the homepage although the two origins have the same ammount of traffic. The autoplay system could be one cause of the increased percentage; perhaps the autoplay takes users to a new piece of content, but the recomendation is not correct and the user choses another content brand using the navigation bar - however this seems unlikely to have occured in such high numbers. 
+Hypothesis two suggested that usage of the navigation bar would differ depending on the origin of the content being viewed. In the most general sense behaviour is quite similar as the majority of navigation usage takes users to another episode of the same brand and series, and very little usage takes users to a completely new brand. However, there are some variations in behaviour.
+
+Users coming from another episode are far more likely to move onto another brand than users from any other location. This seems quite unusual behaviour as users could not be sure that the brand, they wanted would be shown on the navigation bar. At 17% this is also quite a bit higher than the 5% who's origin was the homepage although the two origins have the same amount of traffic. The autoplay system could be one cause of the increased percentage; perhaps the autoplay takes users to a new piece of content, but the recommendation is not correct and the user choses another content brand using the navigation bar - however this seems unlikely to have occurred in such high numbers. 
 
 
 Users coming from the channels page are far more likely to go onto another episode of the same series, most likely because the channels page shows users the most recent series, but always directs users to episode one regardless of if they've watched any episodes prior (information the system has!).
 
 
-Of the users coming from the homepage, 78% move to another episode of the same series, the highest proportion from any origin page. As 88.5% of homepage clicks come from the continue watching rail and 65% of clicks to the onward navigation came within one minute of arriving on the content (see time to click section), this clearly supports the hypothesis that users consistently use this path to get to their next epsiode, that is to say the episode they want to view, rather than that which the system determines to be their next episode. For example when a users watches episode one on iPlayer and then views episode two on linear TV, the system determines their next episode to be episode two, but they actually want to watch episode three. It is important to bear in mind that only 10% of visits contain clicks to this navigation bar, so this is by no means the behaviour of the majority.
+Of the users coming from the homepage, 78% move to another episode of the same series, the highest proportion from any origin page. As 88.5% of homepage clicks come from the continue watching rail and 65% of clicks to the onward navigation came within one minute of arriving on the content (see time to click section), this clearly supports the hypothesis that users consistently use this path to get to their next episode, that is to say the episode they want to view, rather than that which the system determines to be their next episode. For example, when a user watches episode one on iPlayer and then views episode two on linear TV, the system determines their next episode to be episode two, but they actually want to watch episode three. It is important to bear in mind that only 10% of visits contain clicks to this navigation bar, so this is by no means the behaviour of the majority.
 
 
-In contrast to the 78% of users with homepage as the origin, only 69% of users with the TLEO page as the origin click to another episode. Although this seems very high (when users can click the precise episode they desire on a TLEO page), it's interesting to see that only 8% of all navagation using comes from TLEO pages compared to 31% for homepage. This is notable as for all content in 22% of cases the origin is the homepage and 13% is from a TLEO page. Therefore the navigation is clearly used less when coming from a TLEO compared to homepage. This supports hypothesis two.
+In contrast to the 78% of users with homepage as the origin, only 69% of users with the TLEO page as the origin click to another episode. Although this seems very high (when users can click the precise episode they desire on a TLEO page), it's interesting to see that only 8% of all navigation using comes from TLEO pages compared to 31% for homepage. This is notable as for all content in 22% of cases the origin is the homepage and 13% is from a TLEO page. Therefore, the navigation is clearly used less when coming from a TLEO compared to homepage. This supports hypothesis two.
 
 
-Deeplinks into content account for a small percentage of all content origins, but the navigation usage follows and almost identical patten to that for the homepage. Both the information from the homepage and the deeplinks suggest that users are directed to the brand and series they wish to view, but not the right episode. Therefore by directing them intially to the right piece of content they would view fewer pieces of content, and the content completion rate would increase. 
+Deeplinks into content account for a small percentage of all content origins, but the navigation usage follows and almost identical pattern to that for the homepage. Both the information from the homepage and the deeplinks suggest that users are directed to the brand and series they wish to view, but not the right episode. Therefore, by directing them initially to the right piece of content they would view fewer pieces of content, and the content completion rate would increase.
 
-
-
+<br>
+<br>
 
 # Time To Click
-To determine the time users took to click content, each action in their visit was collected from the s3_audience.publosher table in SCV. The episode ID of the content being viewed when the user clicked the onward journey navigation bar was found and the beginning of their viewing identified as the first time that episode ID appeared. This was identified such that if a user viewed a piece of content, then left the content and then returned, the start time would be the return time, not the initial view. This method also meant that any time a user was blocked in viewing, e.g by a gate, their time only began once the gate was closed and content began. 
+To determine the time users took to click content, each action in their visit was collected from the s3_audience.publisher table in SCV. The episode ID of the content being viewed when the user clicked the onward journey navigation bar was found and the beginning of their viewing identified as the first time that episode ID appeared. This was identified such that if a user viewed a piece of content, then left the content and then returned, the start time would be the return time, not the initial view. This method also meant that any time a user was blocked in viewing, e.g. by a gate, their time only began once the gate was closed and content began. 
 
-The time between the start of content viewing and clicking the navigation bar was calculated in seconds and users placed into minute long bands as shown below. 
+The time between the start of content viewing and clicking the navigation bar was calculated in seconds and users placed into minute long bands as shown below.
+
 
 ```{r timeToClick, echo = FALSE}
 clickTime<- read.csv("time_to_click_Jan2020.csv", header = TRUE)
@@ -659,9 +823,10 @@ clickTimeMinutes<- clickTimeMinutes %>% group_by(timeRange_sec) %>%
     mutate(perc = round(100*numInRange/sum(numInRange),1))
 
 ```
+<br>
 
-The number of clicks faling within each minute was counted and is displayed below.
-
+The number of clicks falling within each minute was counted and is displayed below.
+<br>
 
 ```{r timeToClickGraph, echo = FALSE}
   ggplot(data = clickTimeMinutes, aes(x=timeRange_sec, y=numInRange))+
@@ -685,17 +850,15 @@ The number of clicks faling within each minute was counted and is displayed belo
 
 ```
 
-From this it is evident that users either click within the first minute or two, or wait until after 10 minutes of viewing, most likely the end of the programme. This clearly supports hypothesis 1.
+From this it is evident that users either click within the first minute or two, or wait until after 10 minutes of viewing, most likely the end of the programme. This clearly supports hypothesis one.
 
-
+<br>
 
 ## Destination vs Time To Click
 
-Part of the hypothesis suggested that users were specifically selecting content in order to use this navigation bar to move to other episodes. If this were correct then most clicks would occur within the first minute or two of content being viewed when users were moving to the same brand, rather than at the end of viewing that content. Similarly, this pattern should be less evident for users moving to a new brand as they would not be able to predict which brands the recomendation section would show and a more natural route would be through search, channels or categories.
+Part of the hypothesis suggested that users were specifically selecting content in order to use this navigation bar to move to other episodes. If this were correct then most clicks would occur within the first minute or two of content being viewed when users were moving to the same brand, rather than at the end of viewing that content. Similarly, this pattern should be less evident for users moving to a new brand as they would not be able to predict which brands the recommendation section would show and a more natural route would be through search, channels or categories.
 
-
-
-
+<br>
 
 ```{r timeToClickGraphDestination, echo = FALSE, fig.height = 10, fig.width = 10}
 
@@ -745,8 +908,9 @@ ggplot(data = nextEpInfoMins, aes(x=timeRange_sec, y=numInRange/1000000, fill = 
 
 ```
 
-<!-- ############################# HERE ########### -->
-The proportion of clicks each minute taking users to each destination was also investigated. Over the first 10 minutes the greatest proportion of clicks took users to another episode of the same series which was not the next epsiode; this was around 50%, evuivilent to all other destinations combined. After 10 minutes most common destination becase the next episode within the series, most likely because this group includes users who watch to the end of content before clicking the navigation bar.
+<br>
+
+The proportion of clicks each minute taking users to each destination was also investigated. As can be seen below, after one minute almost 70% of navigation clicks have already occurred, and of those clicks 55% took users to another episode of the same series. This destination remains the most popular over the next 10 minutes, although decreases until after 10 minutes when the next episode of the same series becomes most popular. This is most likely because this group includes users who watch to the end of content before clicking the navigation bar.
 
 ```{r clickDestinationAllOrigins, echo = FALSE, fig.height = 10, fig.width = 10}
 
@@ -851,9 +1015,9 @@ ggplot()+
   ggtitle("Click Destination From all Origins \n PS_IPLAYER - Big Screen - 2020-01-15 to 2020-01-29")+
   geom_label(aes(label = "Percentage of Users Remaining"),
              colour="black",
-             x = 1.75, y =1.02,
+             x = 2.3, y =1.02,
              fill = "#043570",
-             alpha = 0.2
+             alpha = 0.1
   )+
   geom_text(data = allTimeToClick%>%filter(clickDestination!='clicksRemaining')%>%filter(perc == 0.388),
             aes(label=paste0(sprintf("%1.f", 100*perc),"%")),
@@ -863,20 +1027,26 @@ ggplot()+
             aes(label=paste0(sprintf("%1.f", 100*perc),"%")),
             x = 11.2, y =0.31,
             colour="black")+
-  theme(legend.position = "bottom",
-        legend.box = "horizontal")+
-  guides(fill = guide_legend(override.aes = aes(label = ""), nrow = 3,byrow = TRUE ))
+  theme(legend.position = "right",
+        legend.box = "vartical", 
+        )
   
 
 
 ```
 
+<br>
 
 
 ## Origin vs Time to Click
 
-The origin of content when user's clicked the onward navigation bar was found, as discussed preivously, and the time to click compared between origins.
-One of the smallest proportion of clicks within the first minute was from users who's origin was another episode suggesting those users moving from one episode to another are more likely to remain on the content, watching for at least 10 minutes. Similarly, users coming from a TLEO page, where the choice of episode can be easily made, only used the navigation bar within the first minute 40% of the time, significantly less than users from other origins, and 33% of the time watched 10 minutes or more before using the bar. 
+The origin of content when users clicked the onward navigation bar was found, as discussed previously, and the time to click compared between origins. One of the smallest proportion of clicks (within the first minute) was from users who's origin was another episode suggesting those users moving from one episode to another are more likely to remain on the content, watching for at least 10 minutes.AS 65% of these users came from a navigation click, this result support to the hypothesis that users are less likely to interact with the navigation bar twice in a sessions. 
+
+Similarly, users coming from a TLEO page, where the choice of episode can be easily made, only used the navigation bar within the first minute 40% of the time suggesting that they were happy with the content they selected to view. As suggested in the hypotheses, users from a TLEO page exhibit different behaviour to those from other pages.
+
+The hypothesis suggested that deep links and homepage origins were more likely to take user to the wrong episode, so there were more likely to use the navigation bar. This has support in that over 70% of clicks for both origins occur within the first minute, but these origins actually seem more successful that the channels and categories pages, both of which se almost 90% of clicks within the first minute. Therefore, although users of homepage and deep link do use the navigation bar quickly, channels and categories seem less successful at directing users to the right content.
+
+<br>
 
 ```{r originTimeToClick, echo = FALSE, fig.height = 15, fig.width = 10}
 #Get the time to click depending on the origin page users came from
@@ -886,7 +1056,7 @@ mutate(timeRange_sec = cut(clickTime_sec,
                            labels = c("0-1", "1-2", "2-3", "3-4", "4-5", "5-6", "6-7", "7-8", "8-9", "9-10", "10+"))) %>% 
   group_by(content_click_placement, timeRange_sec) %>% 
   summarize(numInRange=n()/1000000) %>%
-  mutate(perc = round(100*numInRange/sum(numInRange),1)) 
+  mutate(perc = round(numInRange/sum(numInRange),3)) 
 
 #Set factor levels based on the proportion of clicks
 timeToClickByOrigin$content_click_placement<- factor(timeToClickByOrigin$content_click_placement, 
@@ -906,62 +1076,74 @@ originTotalPerc<- originToDestination %>%
 originTotalPerc$content_click_placement<- factor(originTotalPerc$content_click_placement, 
                                                  levels = c('episode','homepage','channels','categories','tleo','deeplink','search','other'))
 
-#Plot to show each o
-ggplot(data=timeToClickByOrigin, aes(x = timeRange_sec, y =  numInRange)) +
+#Plot to show each origin
+ggplot(data=timeToClickByOrigin, aes(x = timeRange_sec, y =  perc)) +
   geom_bar(stat = "identity", fill = "#043570")+
-  #scale_y_continuous(limits = c(0,1500000), breaks = c(0,1500000), labels = c(0,0.25, 1,2,3,4,5))+
+  scale_y_continuous(limits = c(0,1.1), labels=percent_format(),
+                     breaks = c(0.0,0.2,0.4,0.6,0.8,1.0))+
   ylab("Number of Visits with Click in Time Range (millions)")+
   xlab("Time Range (mins)")+
   geom_label(data = originTotalPerc,
              aes(label = paste0("                            ","Origin for ",round(100*perc,0), "% of clicks"),
-                 fill = NULL),
-             position = position_stack(vjust = 1.1)
+                 fill = NULL), 
+             y = 0.95
                  # y = 0.8,
                  # x = 1)
              )+
-  geom_text(data=subset(timeToClickByOrigin, perc > 5),
-            aes(label=paste0(sprintf("%1.f", perc),"%")),
+  geom_text(data=subset(timeToClickByOrigin, perc > 0.05),
+            aes(label=paste0(sprintf("%1.f", 100*perc),"%")),
             position = position_stack(vjust = 0.5),
             colour="white")+
-  ggtitle(" Percentage of Content Clicks from Each Origin to Each Destination \n PS_IPLAYER - Big Screen - 2020-01-15 to 2020-01-29")+
-  scale_fill_manual(name = "Click Destination", values=(wes_palette(n=5, name="Zissou1")))+
+  ggtitle("Number of Clicks to the Onward Journey Panel 'x' Minutes After Content Start\n PS_IPLAYER - Big Screen - 2020-01-15 to 2020-01-29")+
+  #scale_fill_manual(name = "Click Destination", values=(wes_palette(n=5, name="Zissou1")))+
   theme_classic() +
   facet_wrap(~ content_click_placement, ncol = 2, nrow = 4, scales = "free") +
   theme(legend.position = "bottom",
         legend.box = "horizontal") 
 ```
+<br>
+<br>
 
-### TLEO Origin
-Looking at just clicks coming from a TLEO page (~8% of all origins), the main destination is another episode of the same brand and series. This particularly peaks around 4-5 minutes since the content was loaded, suggesting that at this time 
+# Summary
 
-```{r tleoOriginLineGraph, echo = FALSE}
-tleoDestinationTimeToClick<-
-originToDestination %>%
-  mutate(timeRange_sec = cut(clickTime_sec, 
-                             breaks = c(-1, 60,120,180,240, 300,360,420,480,540, 600,Inf),
-                             labels = c("0-1", "1-2", "2-3", "3-4", "4-5", "5-6", "6-7", "7-8", "8-9", "9-10", "10+"))) %>% 
-  filter(content_click_placement == 'tleo')%>%
-  group_by(timeRange_sec,nextEpClass) %>% 
-  summarize(numInRange=n()) %>%
-  mutate(perc = round(numInRange/sum(numInRange),3))%>%
-  left_join(nextEpClassDF, by = "nextEpClass") %>%
-  ungroup()%>%
-  select(clickDestination,timeRange_sec, perc)
+**1. As per the hypothesis, the majority of users do interact within the onward journey navigation within the first minute.**
 
-tleoDestinationTimeToClick$clickDestination<- factor(tleoDestinationTimeToClick$clickDestination, 
-                                                     levels=  c("Same Brand & Series, Diff Ep",
-                                                                 "Same Brand & Series, Next Ep",
-                                                                 "Same Brand, Diff Series, Diff Ep",
-                                                                 "Same Brand, Diff Series, Next Ep",
-                                                                 "New Brand"))
+* On average this is 65% of all clicks.
+* This is highest at 74% for users moving to another episode of the same brand and series.
+* Users moving to the next episode are most likely to click after 10 minutes, suggesting that they complete the content before clicking.
+* The most common destination of content clicks (another episode of the same brand and series) does not vary until after 10 minutes of viewing when the next episode becomes most common.
+* Origins of the channels and categories pages see the greatest proportion of clicks within the first minute at almost 90%. The homepage and deep links also have a high proportion at 78% and 70% respectively.
+* When TLEO page is the origin, the percentage of clicks within the first minute drops dramatically to 40%.
 
-ggplot(data = tleoDestinationTimeToClick, aes(x = timeRange_sec, y = perc, colour = clickDestination, group = clickDestination))+
-  geom_point()+
-  geom_line()+
-  scale_y_continuous(limits = c(0,0.6), breaks = c(0,0.05,0.1,0.15,0.2,0.25,0.3, 0.35, 0.4,0.45,0.5,0.55,0.6), 
-                     labels = percent_format())+
-  scale_colour_manual(name = "Click Destination", values=(wes_palette(n=5, name="Zissou1")))+
-  ylab("Percentage of Clicks to Each Destination")+
-  xlab("Time Since Content Start (mins)")+
-  ggtitle("Click Destination From TLEO Origin \n PS_IPLAYER - Big Screen - 2020-01-15 to 2020-01-29")
-```
+
+**2. Considering the hypothesis that users of the onward navigation are less likely to click a second time within the visit**.
+
+* 72% of visits with a navigation click do contain just one click, meaning that 28% of visits contain more than one click.
+* Only 52% of user's moving from one episode to another click the navigation within one minute.
+* Of user's whose origin was another episode, 65% used the navigation to get to the second piece of content, before clicking the navigation once more. 
+
+**3. How does this origin of content affect user's behaviour?**
+
+* Users originating from the categories page are most likely to click the navigation at 11% of all content views.
+* In 7% of cases where the content click came from homepage the user clicked the navigation and within this, the continue-watching and recommended modules were most likely to lead to at navigation click at 9% each. 
+* Users who click the navigation are more likely to have come from the homepage and channels page than the whole sample of visits. (31% to 22% for homepage and 14% to 9% for channels)
+* Users clicking the navigation are less likely to have come from a deep link, TLEO or episode page than the whole sample of visits.
+* The percentage of users going to each destination is fairly similar regardless of origin. 
++ When episode is the origin there is an increased proportion moving to a new brand.
++ When a channel page is the origin 65% of users moved to another episode within that brand, the highest percentage of any origin, suggesting the channels page is worst at directing users to the right episode.
+
+**4. How does the destination of a click affect behaviour?**
+
++ Almost all clicks (91%) to the navigation bar take users to another episode within the same brand.
++ The most common destination within the first 10 minutes is another episode of the same series.
++ Only 23% of the 91% move to the next episode of a series.
++ Most clicks happen within the first minute regardless of destination.
++ A lower percentage of clicks happen within the first minute if users are moving to a new brand, but this is not dramatically different behaviour.
+
+
+<br>
+<br>
+<br>
+<br>
+
+---------------------------------------------------             END              ---------------------------------------------------
