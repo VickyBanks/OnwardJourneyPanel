@@ -255,7 +255,7 @@ homepageAllClicks<- allClickOrigins %>% filter(placement == 'homepage' &
                                                  !str_detect(simple_container_name, "u16|u13")) %>%
   group_by(placement, simple_container_name) %>%
   summarise(numClicks = sum(num_content_clicks)) %>%
-  mutate(perc = round(100*numClicks/sum(numClicks),2), clickGroup = "allClicks") %>%
+  mutate(perc = round(numClicks/sum(numClicks),4), clickGroup = "allClicks") %>%
   arrange(desc(perc))%>%
   rename(container = simple_container_name)
 
@@ -263,7 +263,7 @@ homepageNavClicks<- navClickOrigins %>% filter(content_click_placement == 'homep
                                                  !str_detect(content_click_container, "u16|u13")) %>%
   group_by(content_click_placement, content_click_container) %>%
   summarise(numClicks = n()) %>%
-  mutate(perc = round(100*numClicks/sum(numClicks),2), clickGroup = "navClicks") %>%
+  mutate(perc = round(numClicks/sum(numClicks),4), clickGroup = "navClicks") %>%
   arrange(desc(perc))%>% 
   rename(container = content_click_container, placement = content_click_placement)
 
@@ -289,8 +289,8 @@ ggplot(data = homepageComparison %>% filter(container == 'module-watching-contin
   geom_bar(stat= "identity", position = "fill", width=1, color="black", aes(alpha=container))+
   scale_alpha_manual(values=c(0.2,0.4,0.6,0.8,1.0), name = "Click Type Colour Scale")+
   scale_y_continuous(labels=percent_format())+
-  geom_text(data=subset(homepageComparison, perc > 0.05),
-            aes(label=paste0(sprintf("%1.f", 100*perc,"%")),
+  geom_text(data=subset(homepageComparison, perc > 0.5),
+            aes(label=paste0(sprintf("%1.f", 100*perc),"%"),
                 group = container),
             position = position_stack(vjust = 0.5),
             colour="black")+
@@ -312,7 +312,7 @@ ggplot(data = homepageComparison %>% filter(container == 'module-watching-contin
 
 
 
-#######################
+####################### How does the content origin affect the rate of clicks to the nagivation? #######################
 
 head(allClickOrigins)
 head(navClickOrigins)

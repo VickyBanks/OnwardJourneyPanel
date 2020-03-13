@@ -26,7 +26,7 @@ nextEpInfo <- nextEpInfo %>% rename(clickTime_sec = time_since_content_start_sec
 nextEpInfo <- nextEpInfo %>% rename(menuType = menu_type)
 nextEpInfo <- nextEpInfo %>% rename(uv = unique_visitor_cookie_id)
 nextEpInfo <- nextEpInfo %>% rename(nav_click_event_position = nav_select_event_position)
-nextEpInfo %>% filter(is.na(clickTime_sec))
+#nextEpInfo %>% filter(is.na(clickTime_sec))
 nextEpInfo<- na.omit(nextEpInfo)
 nextEpInfo$visit_id <-as.character(nextEpInfo$visit_id)
 nextEpInfo<- nextEpInfo %>% mutate(nextEpClass = paste(same_brand,same_brand_series,next_ep))
@@ -145,7 +145,7 @@ originToDestinationSummary2$content_click_placement<- factor(originToDestination
 ggplot(data = originToDestinationSummary2, 
        aes(x=clickDestination, y=perc, fill = clickDestination))+
   geom_bar(stat = "identity")+
-  scale_y_continuous(limits = c(0,1), breaks = c(0,0.1,0.2,0.3,0.4,0.5,0.6,0.7), 
+  scale_y_continuous(limits = c(0,1), breaks = c(0,0.1,0.2,0.3,0.4,0.5,0.6,0.7),
                      labels = percent_format())+
   geom_label(data = originTotalPerc,
              aes(label = paste0("                ","Origin for ",round(100*perc,0), "% of clicks"),
@@ -162,7 +162,7 @@ ggplot(data = originToDestinationSummary2,
   scale_fill_manual(name = "Click Destination", values=(wes_palette(n=5, name="Zissou1")))+
   xlab("")+
   theme_classic() +
-  facet_wrap(~ content_click_placement, ncol = 2, nrow = 4, scales = "fixed") +
+  facet_wrap(~ content_click_placement, ncol = 2, nrow = 4, scales = "free") +
   theme(legend.position = "bottom",
         legend.box = "horizontal", 
         axis.title.x=element_blank(),
@@ -326,6 +326,15 @@ sankeyJourney<- sankeyNetwork(
 sankeyJourney
 
 #################################### Time to Click Depending on Origin ################################################################################################
+timeToClickByOrigin <- originToDestination %>%
+  mutate(timeRange_sec = cut(clickTime_sec, 
+                             breaks = c(-1, 60,120,180,240, 300,360,420,480,540, 600,Inf),
+                             labels = c("0-1", "1-2", "2-3", "3-4", "4-5", "5-6", "6-7", "7-8", "8-9", "9-10", "10+"))) %>% 
+  group_by(content_click_placement, timeRange_sec) %>% 
+  summarize(numInRange=n()) %>%
+  mutate(perc = round(100*numInRange/sum(numInRange),1)) 
+timeToClickByOrigin$content_click_placement<- factor(timeToClickByOrigin$content_click_placement, 
+                                                     levels = c('episode','homepage','channels','categories','tleo','deeplink','search','other'))
 
 
 originTotalPerc<- originToDestination %>%
@@ -341,15 +350,6 @@ originTotalPerc$content_click_placement<- factor(originTotalPerc$content_click_p
                                                  levels = c('episode','homepage','channels','categories','tleo','deeplink','search','other'))
 
 
-timeToClickByOrigin <- originToDestination %>%
-mutate(timeRange_sec = cut(clickTime_sec, 
-                           breaks = c(-1, 60,120,180,240, 300,360,420,480,540, 600,Inf),
-                           labels = c("0-1", "1-2", "2-3", "3-4", "4-5", "5-6", "6-7", "7-8", "8-9", "9-10", "10+"))) %>% 
-  group_by(content_click_placement, timeRange_sec) %>% 
-  summarize(numInRange=n()) %>%
-  mutate(perc = round(100*numInRange/sum(numInRange),1)) 
-timeToClickByOrigin$content_click_placement<- factor(timeToClickByOrigin$content_click_placement, 
-                                                     levels = c('episode','homepage','channels','categories','tleo','deeplink','search','other'))
 
 timeToClickByOrigin %>% filter(timeRange_sec == '0-1')%>%select(content_click_placement, numInRange)
 

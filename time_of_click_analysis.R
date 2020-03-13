@@ -2,6 +2,7 @@ library(ggplot2)
 library(ggridges)
 library(dplyr)
 library(ggrepel)
+library(wesanderson)
 
 clickTime<- read.csv("time_to_click_Jan2020.csv", header = TRUE)
 clickTime <- clickTime %>% rename(clickTime_sec = time_since_content_start_sec)
@@ -35,7 +36,7 @@ summary(clickTime)
                aes(label=paste0(sprintf("%1.0f", perc),"%"),),
                position = position_stack(vjust = 1.6),
                colour="black")+
-    ggtitle("Number of Clicks to the Onward Journey Panel 'x' Minutes After Content Start \n PS_IPLAYER - Big Screen - 2019-11-01 to 2019-11-14" )+
+    ggtitle("Number of Clicks to the Onward Journey Panel 'x' Minutes After Content Start \n PS_IPLAYER - Big Screen - 2020-01-15 to 2020-01-29" )+
   theme_classic() 
 
   
@@ -120,8 +121,6 @@ ggplot(data = nextEpInfoMins, aes(x=timeRange_sec, y=numInRange/1000000, fill = 
  theme(legend.position = "none")
 
 
-
-############### Look at time to click depending on where they came from
 
 
   
